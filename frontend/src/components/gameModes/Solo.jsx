@@ -407,12 +407,12 @@ export default function Solo() {
 
               {txSignature && (
                 <a
-                  href={`https://explorer.solana.com/tx/${txSignature}?cluster=devnet`}
+                  href={`https://stellar.expert/explorer/testnet/tx/${txSignature}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-xs text-emerald-400 hover:text-emerald-300 cursor-pointer mb-6 underline underline-offset-2 transition-colors"
                 >
-                  View payout on Solana Explorer ↗
+                  View payout on Stellar Expert ↗
                 </a>
               )}
 

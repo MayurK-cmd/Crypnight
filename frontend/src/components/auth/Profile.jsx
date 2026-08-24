@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import API from "../../api/axios";
 import { useNavigate, Link } from "react-router-dom";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { Connection } from "@solana/web3.js";
+import { useWallet } from "../../wallet/WalletProvider";
+import StellarSdk from "stellar-sdk";
 import { User, Wallet, Shield, Calendar, ArrowLeft, Loader2 } from 'lucide-react';
 
 const Toast = ({ message, type, onClose }) => (
@@ -21,11 +21,11 @@ export default function Profile() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ show: false, msg: '', type: 'success' });
-  const [solBalance, setSolBalance] = useState(null);
+  const [xlmBalance, setXlmBalance] = useState(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const navigate = useNavigate();
   const { publicKey } = useWallet();
-  const connection = new Connection('https://api.devnet.solana.com', 'confirmed');
+  const server = new StellarSdk.Server("https://horizon-testnet.stellar.org");
 
   const showToast = (msg, type = 'success') => {
     setToast({ show: true, msg, type });
@@ -50,12 +50,17 @@ export default function Profile() {
   useEffect(() => {
     if (publicKey) {
       setBalanceLoading(true);
-      connection.getBalance(publicKey)
-        .then(balance => setSolBalance(balance / 1_000_000_000))
+      server.accounts()
+        .accountId(publicKey)
+        .call()
+        .then(account => {
+          const nativeBalance = account.balances.find(b => b.asset_type === 'native');
+          setXlmBalance(nativeBalance ? parseFloat(nativeBalance.balance) : 0);
+        })
         .catch(err => console.error('Failed to fetch balance:', err))
         .finally(() => setBalanceLoading(false));
     }
-  }, [publicKey, connection]);
+  }, [publicKey]);
 
   if (loading) {
     return (
@@ -102,13 +107,13 @@ export default function Profile() {
                 </div>
               </div>
 
-              {/* Solana Balance Card */}
+              {/* Stellar XLM Balance Card */}
               <div className="bg-slate-50 border border-slate-100 p-8 rounded-[2.5rem] flex items-start gap-5 shadow-sm">
-                <div className="p-4 bg-white rounded-2xl text-emerald-600 shadow-sm">◎</div>
+                <div className="p-4 bg-white rounded-2xl text-emerald-600 shadow-sm">★</div>
                 <div>
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Solana Balance</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Stellar Balance</span>
                   <p className="text-xl font-black text-emerald-600 mt-1 font-mono">
-                    {balanceLoading ? <Loader2 size={20} className="animate-spin" /> : (solBalance !== null ? `${solBalance.toFixed(4)} SOL` : "N/A")}
+                    {balanceLoading ? <Loader2 size={20} className="animate-spin" /> : (xlmBalance !== null ? `${xlmBalance.toFixed(4)} XLM` : "N/A")}
                   </p>
                 </div>
               </div>

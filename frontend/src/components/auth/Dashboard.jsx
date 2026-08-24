@@ -105,15 +105,15 @@ export default function Dashboard() {
               Welcome back{user?.username ? `, ` : ', '}
               <span className="font-mono text-emerald-600">{user?.username || 'Strategist'}</span>.
             </h2>
-            <p className="text-slate-500 mt-1 font-medium text-sm md:text-base">Ready to claim your next SOL reward?</p>
+            <p className="text-slate-500 mt-1 font-medium text-sm md:text-base">Ready to claim your next XLM reward?</p>
           </div>
           <a
-            href="https://faucet.solana.com/"
+            href="https://laboratory.stellar.org/#?network=test"
             target="_blank"
             rel="noopener noreferrer"
             className="w-full md:w-auto bg-black text-white px-8 py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-xl shadow-slate-200 cursor-pointer"
           >
-            <Zap size={18} /> Solana Faucet
+            <Zap size={18} /> Stellar Testnet Faucet
           </a>
         </header>
 

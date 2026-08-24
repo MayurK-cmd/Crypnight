@@ -11,18 +11,18 @@ import MatchHistory from './components/MatchHistory.jsx'
 import Leaderboard from './components/Leaderboard.jsx'
 
 import { AuthProvider } from './context/AuthContext';
-import SolanaProvider from './wallet/WalletProvider';
+import FreighterProvider from './wallet/WalletProvider';
 import './App.css'
 import {Route, Routes, Router, BrowserRouter} from 'react-router-dom'
 
 function App() {
-  
+
 
   return (
     <div>
-      
+
       <AuthProvider>
-      <SolanaProvider>
+      <FreighterProvider>
       <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
@@ -39,7 +39,7 @@ function App() {
 
       </Routes>
       </BrowserRouter>
-      </SolanaProvider>
+      </FreighterProvider>
       </AuthProvider>
     </div>
   )

@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { Chess } from "chess.js";
 import { Chessboard } from "react-chessboard";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { Connection, PublicKey, Transaction, SystemProgram } from "@solana/web3.js";
+import { useWallet } from "../../wallet/WalletProvider";
+import StellarSdk from "stellar-sdk";
 import API from "../../api/axios";
 import { AuthContext } from "../../context/AuthContext";
 import { useDuelSocket } from "../../hooks/useDuelSocket";
@@ -21,17 +21,22 @@ import {
 } from "lucide-react";
 
 const TIER_LABELS = {
-  beginner: "Beginner (0.05 SOL)",
-  intermediate: "Intermediate (0.10 SOL)",
-  pro: "Pro (0.25 SOL)",
-  gm: "Grandmaster (0.50 SOL)",
+  beginner: "Beginner (0.5 XLM)",
+  intermediate: "Intermediate (1.0 XLM)",
+  pro: "Pro (2.5 XLM)",
+  gm: "Grandmaster (5.0 XLM)",
 };
 
-const STAKE_LAMPORTS = {
-  beginner: 50_000_000,
-  intermediate: 100_000_000,
-  pro: 250_000_000,
-  gm: 500_000_000,
+const STAKE_STROOPS = {
+  beginner: 5_000_000,
+  intermediate: 10_000_000,
+  pro: 25_000_000,
+  gm: 50_000_000,
+};
+
+const STELLAR_TESTNET = {
+  networkPassphrase: StellarSdk.Networks.TESTNET_NETWORK_PASSPHRASE,
+  horizon: "https://horizon-testnet.stellar.org",
 };
 
 export default function Duel() {
@@ -126,26 +131,38 @@ export default function Duel() {
 
     try {
       setState("waiting_both");
-      const escrowPda = import.meta.env.VITE_DUEL_ESCROW_PDA;
+      const escrowAccount = import.meta.env.VITE_DUEL_ESCROW_ACCOUNT;
 
-      const connection = new Connection("https://api.devnet.solana.com", "confirmed");
-      const stakeLamports = STAKE_LAMPORTS[selectedTier];
+      const server = new StellarSdk.Server(STELLAR_TESTNET.horizon);
+      const sourceAccount = await server.loadAccount(publicKey);
 
-      const txSig = await sendTransaction(
-        new Transaction().add(
-          SystemProgram.transfer({
-            fromPubkey: publicKey,
-            toPubkey: new PublicKey(escrowPda),
-            lamports: stakeLamports,
+      const stakeStroops = STAKE_STROOPS[selectedTier];
+      const baseFeeFraction = await server.fetchBaseFee();
+      const baseFee = Math.ceil(baseFeeFraction * 100);
+
+      const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+        fee: baseFee,
+        networkPassphrase: STELLAR_TESTNET.networkPassphrase,
+      })
+        .addOperation(
+          StellarSdk.Operation.payment({
+            destination: escrowAccount,
+            asset: StellarSdk.Asset.native(),
+            amount: (stakeStroops / 10_000_000).toString(),
           })
-        ),
-        connection
+        )
+        .setTimeout(300)
+        .build();
+
+      const signedTx = await signTransaction(transaction.toXDR());
+      const txResponse = await server.submitTransaction(
+        new StellarSdk.Transaction(signedTx, STELLAR_TESTNET.networkPassphrase)
       );
 
-      await connection.confirmTransaction(txSig, "confirmed");
       setPlayerDeposited(true);
-      confirmDeposit(matchId, txSig);
+      confirmDeposit(matchId, txResponse.id);
     } catch (err) {
+      console.error("Stake error:", err);
       setState("match_found");
     }
   };

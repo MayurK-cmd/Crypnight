@@ -1,9 +1,7 @@
 import { useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { useWallet } from "../../wallet/WalletProvider";
 import API from "../../api/axios";
 import { useNavigate } from "react-router-dom";
-import bs58 from "bs58";
 
 const Toast = ({ message, type, onClose }) => (
   <div className="fixed bottom-10 right-10 z-[100] animate-in fade-in slide-in-from-bottom-5 duration-300 text-left">
@@ -18,9 +16,10 @@ const Toast = ({ message, type, onClose }) => (
 );
 
 export default function Setup() {
-  const { publicKey, signMessage } = useWallet();
+  const { publicKey, connected, connect, signTransaction } = useWallet();
   const [tier, setTier] = useState("");
   const [toast, setToast] = useState({ show: false, msg: '', type: 'success' });
+  const [connecting, setConnecting] = useState(false);
   const navigate = useNavigate();
 
   const showToast = (msg, type = 'success') => {
@@ -28,23 +27,32 @@ export default function Setup() {
     setTimeout(() => setToast({ show: false, msg: '', type: 'success' }), 4000);
   };
 
+  const handleConnectWallet = async () => {
+    if (connected) return;
+    setConnecting(true);
+    try {
+      await connect();
+      showToast("Wallet connected!");
+    } catch (err) {
+      showToast("Failed to connect wallet. Ensure Freighter is installed.", "error");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
   const linkWallet = async () => {
     if (!publicKey) return showToast("Connect wallet first", "error");
     try {
-      const message = "Link wallet to CrypNight.sol";
-      const encoded = new TextEncoder().encode(message);
-      const signature = await signMessage(encoded);
-      const signatureBase58 = bs58.encode(signature);
+      const message = "Link wallet to CrypNight - Stellar";
 
       await API.post("/user/link-wallet", {
-        walletAddress: publicKey.toBase58(),
-        signature: signatureBase58,
+        walletAddress: publicKey,
         message,
       });
 
       showToast("Wallet linked & verified!");
     } catch (err) {
-      showToast("Signature request declined", "error");
+      showToast("Failed to link wallet", "error");
     }
   };
 
@@ -67,26 +75,33 @@ export default function Setup() {
       <div className="w-full max-w-2xl">
         <div className="text-center mb-12">
           <h2 className="text-4xl font-black tracking-tight mb-3">Finalize Your Profile</h2>
-          <p className="text-slate-500 font-medium">Connect your Solana identity and set your starting rank.</p>
+          <p className="text-slate-500 font-medium">Connect your Stellar identity and set your starting rank.</p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8">
           <div className="bg-slate-50 border border-slate-100 p-8 rounded-[2.5rem] flex flex-col items-center text-center shadow-sm">
             <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center font-black mb-6">01</div>
             <h3 className="text-xl font-bold mb-2 text-slate-900">Identify</h3>
-            <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Connect your wallet to secure your earnings and profile.</p>
-            
-            <div className="wallet-button-wrapper mb-4">
-              <WalletMultiButton className="!bg-black !rounded-xl !px-6 !h-12 !font-bold hover:!bg-slate-800 transition-all !shadow-lg" />
-            </div>
+            <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Connect your Freighter wallet to secure your earnings and profile.</p>
 
-            {publicKey && (
-              <button
-                onClick={linkWallet}
-                className="text-xs font-black uppercase tracking-tighter text-emerald-600 hover:text-emerald-700 underline underline-offset-4 transition-all cursor-pointer"
-              >
-                Sign Verification Message
-              </button>
+            <button
+              onClick={handleConnectWallet}
+              disabled={connected || connecting}
+              className="w-full mb-4 py-3 bg-black text-white rounded-xl px-6 font-bold hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+            >
+              {connecting ? "Connecting..." : connected ? "✓ Connected" : "Connect Freighter"}
+            </button>
+
+            {connected && publicKey && (
+              <>
+                <p className="text-xs text-slate-500 mb-4 break-all">{publicKey.substring(0, 8)}...{publicKey.substring(publicKey.length - 8)}</p>
+                <button
+                  onClick={linkWallet}
+                  className="text-xs font-black uppercase tracking-tighter text-emerald-600 hover:text-emerald-700 underline underline-offset-4 transition-all cursor-pointer"
+                >
+                  Verify Wallet
+                </button>
+              </>
             )}
           </div>
 
@@ -97,6 +112,7 @@ export default function Setup() {
 
             <select
               disabled={!publicKey}
+              value={tier}
               onChange={(e) => setTier(e.target.value)}
               className="w-full bg-white border border-slate-200 rounded-xl px-4 py-4 text-slate-900 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 mb-6 appearance-none cursor-pointer font-bold disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -118,7 +134,7 @@ export default function Setup() {
         </div>
 
         <p className="text-center mt-12 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
-          Powered by Solana Network
+          Powered by Stellar Network
         </p>
       </div>
     </div>
