@@ -40,11 +40,11 @@ export function useDuelSocket() {
           listenersRef.current.duelStart.forEach(cb => cb(data));
         } else if (data.type === 'duel:new_puzzle') {
           listenersRef.current.newPuzzle.forEach(cb => cb(data));
-        } else if (data.type === 'puzzle:solved') {
+        } else if (data.type === 'puzzle:Solved') {
           listenersRef.current.puzzleSolved.forEach(cb => cb(data));
         } else if (data.type === 'puzzle:failed') {
           listenersRef.current.puzzleFailed.forEach(cb => cb(data));
-        } else if (data.type === 'opponent:solved_puzzle' || data.type === 'opponent:failed_puzzle' || data.type === 'opponent:moved') {
+        } else if (data.type === 'opponent:Solved_puzzle' || data.type === 'opponent:failed_puzzle' || data.type === 'opponent:moved') {
           listenersRef.current.opponentReply.forEach(cb => cb(data));
         } else if (data.type === 'duel:ended') {
           listenersRef.current.duelEnded.forEach(cb => cb(data));
@@ -156,4 +156,6 @@ export function useDuelSocket() {
     onDuelEnded,
   };
 }
+
+
 

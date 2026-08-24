@@ -1,14 +1,23 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import StellarSdk from 'stellar-sdk';
+import pkg from 'stellar-sdk';
+const { Server, Networks, Keypair, Asset, Operation, TransactionBuilder, Memo, StrKey } = pkg;
 
 const STELLAR_TESTNET = {
-  networkPassphrase: StellarSdk.Networks.TESTNET_NETWORK_PASSPHRASE,
+  networkPassphrase: Networks.TESTNET_NETWORK_PASSPHRASE,
   horizon: process.env.STELLAR_HORIZON_URL || 'https://horizon-testnet.stellar.org',
 };
 
-const server = new StellarSdk.Server(STELLAR_TESTNET.horizon);
+let _server = null;
+const getServer = () => {
+  if (!_server) {
+    _server = new Server(STELLAR_TESTNET.horizon);
+  }
+  return _server;
+};
+
+const server = { loadAccount: (addr) => getServer().loadAccount(addr), fetchBaseFee: () => getServer().fetchBaseFee(), submitTransaction: (tx) => getServer().submitTransaction(tx) };
 
 let cachedAuthorityKeypair = null;
 const getAuthorityKeypair = () => {
@@ -16,22 +25,23 @@ const getAuthorityKeypair = () => {
     if (!process.env.PLATFORM_AUTHORITY_SECRET_KEY) {
       throw new Error('PLATFORM_AUTHORITY_SECRET_KEY not set in environment');
     }
-    cachedAuthorityKeypair = StellarSdk.Keypair.fromSecret(
+    cachedAuthorityKeypair = Keypair.fromSecret(
       process.env.PLATFORM_AUTHORITY_SECRET_KEY
     );
   }
   return cachedAuthorityKeypair;
 };
 
-const PLATFORM_ESCROW_ACCOUNT = process.env.PLATFORM_ESCROW_ACCOUNT;
-if (!PLATFORM_ESCROW_ACCOUNT) {
-  throw new Error('PLATFORM_ESCROW_ACCOUNT not set in environment');
-}
-
 export {
   server,
   STELLAR_TESTNET,
   getAuthorityKeypair,
-  PLATFORM_ESCROW_ACCOUNT,
-  StellarSdk,
+  Server,
+  Networks,
+  Keypair,
+  Asset,
+  Operation,
+  TransactionBuilder,
+  Memo,
+  StrKey,
 };

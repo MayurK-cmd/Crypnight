@@ -19,14 +19,14 @@ const GameModes = () => {
               <span className="text-xs font-mono text-slate-400 uppercase tracking-widest">Skill-to-Earn</span>
             </div>
             <h3 className="text-2xl font-bold mb-4">Solo Practice</h3>
-            <p className="text-slate-500 mb-8 text-sm">Solve random puzzles at your difficulty. Earn SOL rewards based on your solve time vs global averages.</p>
+            <p className="text-slate-500 mb-8 text-sm">Solve random puzzles at your difficulty. Earn XLM rewards based on your Solve time vs global averages.</p>
             <ul className="space-y-3 mb-10 text-sm font-medium">
               <li className="flex items-center gap-2">✅ Beginner to GM tiers</li>
               <li className="flex items-center gap-2">✅ No staking required</li>
               <li className="flex items-center gap-2">✅ Instant reward claim</li>
             </ul>
             <button
-              onClick={() => navigate('/solo')}
+              onClick={() => navigate('/Solo')}
               className="w-full py-4 bg-slate-100 rounded-2xl font-bold group-hover:bg-emerald-400 group-hover:text-black transition-all cursor-pointer"
             >
               Enter Practice
@@ -51,7 +51,7 @@ const GameModes = () => {
               ].map(({tier, stake}) => (
                 <div key={stake} className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
                   <span className="block text-[9px] text-slate-500 uppercase font-bold">{tier}</span>
-                  <span className="text-sm font-bold text-emerald-400">{stake} SOL</span>
+                  <span className="text-sm font-bold text-emerald-400">{stake} XLM</span>
                 </div>
               ))}
             </div>

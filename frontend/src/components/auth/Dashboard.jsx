@@ -55,7 +55,7 @@ export default function Dashboard() {
           <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-lg">C</span>
           </div>
-          <span className="font-extrabold text-xl tracking-tighter italic text-slate-900">crypnight<span className='text-emerald-500'>.sol</span></span>
+          <span className="font-extrabold text-xl tracking-tighter italic text-slate-900">crypnight<span className='text-emerald-500'>.XLM</span></span>
         </div>
 
         <nav className="flex-1 space-y-2">
@@ -88,7 +88,7 @@ export default function Dashboard() {
           <div className="w-7 h-7 bg-black rounded-md flex items-center justify-center">
             <span className="text-white font-bold text-sm">C</span>
           </div>
-          <span className="font-extrabold text-lg tracking-tighter italic">crypnight.sol</span>
+          <span className="font-extrabold text-lg tracking-tighter italic">crypnight.XLM</span>
         </div>
         <button onClick={handleLogout} className="p-2 text-red-500 cursor-pointer">
           <LogOut size={20} />
@@ -127,12 +127,12 @@ export default function Dashboard() {
           <div className="md:col-span-2 bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-xl shadow-slate-200 group">
              <div className="relative z-10">
                 <h3 className="text-2xl font-bold mb-2 uppercase tracking-tight">Solo Speed Arena</h3>
-                <p className="text-slate-400 mb-8 text-sm max-w-xs leading-relaxed">Solve high-intensity puzzles to earn SOL based on your ELO tier.</p>
+                <p className="text-slate-400 mb-8 text-sm max-w-xs leading-relaxed">Solve high-intensity puzzles to earn XLM based on your ELO tier.</p>
                 <button
-                  onClick={() => navigate('/solo')}
+                  onClick={() => navigate('/Solo')}
                   className="w-full md:w-auto bg-emerald-400 text-black px-8 py-4 rounded-2xl font-black hover:bg-emerald-300 transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Zap size={18} fill="currentColor" /> ENTER SOLO MODE
+                  <Zap size={18} fill="currentColor" /> ENTER Solo MODE
                 </button>
              </div>
              <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 blur-[100px] rounded-full group-hover:bg-emerald-500/20 transition-all duration-700"></div>
@@ -188,3 +188,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

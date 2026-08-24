@@ -131,7 +131,7 @@ export default function Leaderboard() {
                   {entry.username || entry.wallet_short || 'anonymous'}
                 </p>
                 <p className="text-xs text-slate-400">
-                  {entry.tier ? `${entry.tier} · ` : ''}{entry.puzzles_solved} solved · streak {entry.best_streak}
+                  {entry.tier ? `${entry.tier} · ` : ''}{entry.puzzles_Solved} Solved · streak {entry.best_streak}
                 </p>
               </div>
               <div className="text-right">
@@ -139,7 +139,7 @@ export default function Leaderboard() {
                   {entry.rating} ELO
                 </div>
                 <div className="text-xs font-black text-emerald-600">
-                  {Number(entry.total_earned ?? 0).toFixed(3)} SOL
+                  {Number(entry.total_earned ?? 0).toFixed(3)} XLM
                 </div>
               </div>
             </div>
@@ -149,3 +149,5 @@ export default function Leaderboard() {
     </div>
   );
 }
+
+

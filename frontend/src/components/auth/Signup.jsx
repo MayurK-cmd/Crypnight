@@ -106,11 +106,11 @@ export default function Signup() {
               <span className="text-white font-bold text-2xl">C</span>
             </div>
             <span className="font-extrabold text-2xl tracking-tighter">
-              crypnight<span className="text-emerald-500">.sol</span>
+              crypnight<span className="text-emerald-500">.XLM</span>
             </span>
           </div>
           <h2 className="text-4xl font-black tracking-tight mb-2">Join the Arena</h2>
-          <p className="text-slate-500 font-medium">Master your strategy, earn your SOL.</p>
+          <p className="text-slate-500 font-medium">Master your strategy, earn your XLM.</p>
         </div>
 
         <form onSubmit={handleSignup} className="bg-slate-50 border border-slate-100 p-8 rounded-[2.5rem] shadow-sm">
@@ -120,7 +120,7 @@ export default function Signup() {
               <input
                 type="email"
                 required
-                placeholder="grandmaster@chess.sol"
+                placeholder="grandmaster@chess.XLM"
                 className="w-full bg-white border border-slate-200 rounded-2xl px-5 py-4 text-slate-900 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 transition-all"
                 onChange={(e) => setEmail(e.target.value)}
               />

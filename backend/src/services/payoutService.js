@@ -2,9 +2,16 @@ import {
   server,
   STELLAR_TESTNET,
   getAuthorityKeypair,
-  PLATFORM_ESCROW_ACCOUNT,
-  StellarSdk,
+  Server,
+  Asset,
+  Operation,
+  TransactionBuilder,
+  Memo,
+  StrKey,
 } from '../config/solana.js';
+
+const SOLO_CONTRACT_ID = process.env.STELLAR_SOLO_CONTRACT_ID;
+const SOLO_TREASURY = process.env.STELLAR_SOLO_TREASURY_PUBLIC_KEY;
 
 const payReward = async (playerWalletAddress, rewardXlm) => {
   console.log(`\n💰 PAYOUT START - Player: ${playerWalletAddress}, Reward: ${rewardXlm} XLM\n`);
@@ -23,7 +30,7 @@ const payReward = async (playerWalletAddress, rewardXlm) => {
     console.log(`✅ Authority keypair loaded: ${authorityKeypair.publicKey()}`);
 
     // Verify player wallet address is valid
-    if (!StellarSdk.StrKey.isValidEd25519PublicKey(playerWalletAddress)) {
+    if (!StrKey.isValidEd25519PublicKey(playerWalletAddress)) {
       throw new Error('Invalid Stellar wallet address');
     }
     console.log(`✅ Player wallet validated: ${playerWalletAddress}`);
@@ -32,30 +39,28 @@ const payReward = async (playerWalletAddress, rewardXlm) => {
     const sourceAccount = await server.loadAccount(authorityKeypair.publicKey());
     console.log(`✅ Authority account loaded, sequence: ${sourceAccount.sequence}`);
 
-    // Calculate fee (3%)
-    const grossXlm = parseFloat(rewardXlm);
-    const feeXlm = (grossXlm * 0.03);
-    const playerPayoutXlm = (grossXlm - feeXlm).toFixed(7);
+    const playerPayoutXlm = (parseFloat(rewardXlm) * 0.97).toFixed(7); // 3% fee deducted
+    const feeXlm = (parseFloat(rewardXlm) * 0.03).toFixed(7);
 
     console.log(`✅ Reward calculated:`);
-    console.log(`   Gross: ${grossXlm} XLM`);
-    console.log(`   Fee (3%): ${feeXlm.toFixed(7)} XLM`);
+    console.log(`   Gross: ${rewardXlm} XLM`);
+    console.log(`   Fee (3%): ${feeXlm} XLM`);
     console.log(`   Player receives: ${playerPayoutXlm} XLM`);
 
-    // Build transaction
+    // Build transaction - transfer player payout from treasury to player
     const baseFee = await server.fetchBaseFee();
-    const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+    const transaction = new TransactionBuilder(sourceAccount, {
       fee: Math.ceil(baseFee * 100),
       networkPassphrase: STELLAR_TESTNET.networkPassphrase,
     })
       .addOperation(
-        StellarSdk.Operation.payment({
+        Operation.payment({
           destination: playerWalletAddress,
-          asset: StellarSdk.Asset.native(),
+          asset: Asset.native(),
           amount: playerPayoutXlm,
         })
       )
-      .addMemo(StellarSdk.Memo.text('CrypNight Reward'))
+      .addMemo(Memo.text('CrypNight Reward'))
       .setTimeout(300)
       .build();
 
@@ -77,7 +82,7 @@ const payReward = async (playerWalletAddress, rewardXlm) => {
     return {
       signature: result.hash,
       playerPayout: parseFloat(playerPayoutXlm),
-      fee: parseFloat(feeXlm.toFixed(7)),
+      fee: parseFloat(feeXlm),
     };
   } catch (err) {
     console.error(`\n❌ PAYOUT FAILED`);
@@ -92,11 +97,11 @@ const payReward = async (playerWalletAddress, rewardXlm) => {
 
 const getTreasuryBalance = async () => {
   try {
-    const account = await server.loadAccount(PLATFORM_ESCROW_ACCOUNT);
+    const account = await server.loadAccount(SOLO_TREASURY);
     const nativeBalance = account.balances.find(b => b.asset_type === 'native');
     return nativeBalance ? parseFloat(nativeBalance.balance) : 0;
   } catch (err) {
-    console.error('Failed to fetch escrow balance:', err);
+    console.error('Failed to fetch treasury balance:', err);
     throw err;
   }
 };

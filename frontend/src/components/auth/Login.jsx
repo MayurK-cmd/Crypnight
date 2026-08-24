@@ -62,7 +62,7 @@ export default function Login() {
               <span className="text-white font-bold text-2xl">C</span>
             </div>
             <span className="font-extrabold text-2xl tracking-tighter">
-              crypnight<span className="text-emerald-500">.sol</span>
+              crypnight<span className="text-emerald-500">.XLM</span>
             </span>
           </div>
           <h1 className="text-4xl font-black tracking-tight mb-2">Welcome Back</h1>

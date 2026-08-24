@@ -60,7 +60,7 @@ const LandingPage = () => {
               <span className="text-white font-bold text-xl">C</span>
             </div>
             <span className="font-extrabold text-xl tracking-tighter">
-              crypnight<span className="text-emerald-500">.sol</span>
+              crypnight<span className="text-emerald-500">.XLM</span>
             </span>
           </div>
 
@@ -117,15 +117,15 @@ const LandingPage = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            LIVE ON DEVNET
+            LIVE ON TESTNET
           </div>
-          
+
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight mb-8 leading-[1.1]">
             Checkmate to <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-emerald-700">Earn SOL.</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-emerald-700">Earn XLM.</span>
           </h1>
           <p className="text-lg md:text-xl text-slate-500 max-w-2xl mx-auto mb-10 font-medium">
-            The world's first decentralized chess puzzle arena. Compete in high-speed duels, solve complex patterns, and get paid for your intelligence.
+            The world's first decentralized chess puzzle arena. Compete in high-speed duels, Solve complex patterns, and get paid for your intelligence.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
@@ -158,22 +158,22 @@ const LandingPage = () => {
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-1.5 rounded-full text-xs font-bold mb-6">
             <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-            POWERED BY MAGIC BLOCK
+            POWERED BY SOROBAN
           </div>
-          <h2 className="text-3xl md:text-4xl font-black tracking-tight mb-4">Instant Settlement on Solana</h2>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tight mb-4">Instant Settlement on Stellar</h2>
           <p className="text-lg text-slate-500 max-w-2xl mx-auto mb-8 font-medium">
-            CrypNight uses <span className="font-bold text-slate-700">Magic Block Ephemeral Rollups (ER)</span> for lightning-fast payouts. Your earnings settle in ~1-2 seconds, not slots. No waiting for Solana confirmation delays—just skill, intelligence, and instant rewards.
+            CrypNight uses <span className="font-bold text-slate-700">Soroban smart contracts</span> for lightning-fast payouts. Your earnings settle instantly on-chain. No waiting for block confirmation delays—just skill, intelligence, and instant rewards.
           </p>
           <div className="grid md:grid-cols-3 gap-6">
             <div className="p-6 rounded-2xl bg-white border border-slate-200">
               <div className="text-2xl font-black text-emerald-600 mb-2">⚡</div>
               <h3 className="font-bold text-slate-900 mb-2">Instant Finality</h3>
-              <p className="text-sm text-slate-500">Payouts confirmed in milliseconds via Magic Block ER shard, not Solana slots</p>
+              <p className="text-sm text-slate-500">Payouts confirmed instantly via Soroban smart contracts on Stellar</p>
             </div>
             <div className="p-6 rounded-2xl bg-white border border-slate-200">
               <div className="text-2xl font-black text-emerald-600 mb-2">💰</div>
               <h3 className="font-bold text-slate-900 mb-2">Settled & Final</h3>
-              <p className="text-sm text-slate-500">Results commit to Solana after ER batch—100% final, zero rollback risk</p>
+              <p className="text-sm text-slate-500">Results finalized on Stellar ledger—100% final, zero rollback risk</p>
             </div>
             <div className="p-6 rounded-2xl bg-white border border-slate-200">
               <div className="text-2xl font-black text-emerald-600 mb-2">🎯</div>
@@ -210,7 +210,7 @@ const LandingPage = () => {
 
              {rows !== null && rows.length === 0 && (
                <div className="text-center py-12 text-slate-400 font-bold">
-                 No ranked players yet — solve 5 puzzles to land on the board.
+                 No ranked players yet — Solve 5 puzzles to land on the board.
                </div>
              )}
 
@@ -255,9 +255,9 @@ const LandingPage = () => {
                            </div>
                          </td>
                          <td className="py-6 font-mono font-black text-emerald-600">{entry.rating}</td>
-                         <td className="py-6 text-slate-500 font-bold">{entry.puzzles_solved}</td>
+                         <td className="py-6 text-slate-500 font-bold">{entry.puzzles_Solved}</td>
                          <td className="py-6 text-slate-500 font-bold">
-                           {Number(entry.total_earned ?? 0).toFixed(3)} SOL
+                           {Number(entry.total_earned ?? 0).toFixed(3)} XLM
                          </td>
                        </tr>
                      );
@@ -297,7 +297,7 @@ const LandingPage = () => {
            {myRank === undefined && (
              <div className="mt-6 p-6 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
                <p className="text-sm text-slate-500 font-medium">
-                 Sign up and start solving to land on the board.
+                 Sign up and start Solving to land on the board.
                </p>
                <button
                  onClick={() => navigate('/signup')}
@@ -335,10 +335,11 @@ const LandingPage = () => {
             <a href="#" className="text-slate-400 hover:text-black transition-colors cursor-pointer">Discord</a>
             <a href="#" className="text-slate-400 hover:text-black transition-colors cursor-pointer">Docs</a>
         </div>
-        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest italic">© 2026 Crypnight.sol — Built on Solana</p>
+        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest italic">© 2026 Crypnight.XLM — Built on Stellar</p>
       </footer>
     </div>
   );
 };
 
 export default LandingPage;
+

@@ -3,6 +3,10 @@
   "module": "index.js",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev": "node index.js",
+    "start": "node index.js"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },

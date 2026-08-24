@@ -1,7 +1,7 @@
-import WebSocket from 'ws';
+import { WebSocketServer } from 'ws';
 import { DuelManager, puzzleState } from './duelManager.js';
 import { supabase } from '../config/supabase.js';
-import { settleDuel, refundDuel, forfeitDuel } from './duelPayoutService.js';
+import { settleDuel, refundDuel } from './duelPayoutService.js';
 import { getPuzzleByRating } from './puzzleLoader.js';
 
 // Store active WebSocket connections by user ID for broadcasting
@@ -571,7 +571,7 @@ async function handleReconnect(ws, data) {
 }
 
 export function setupDuelWebSocket(server) {
-  const wss = new WebSocket.Server({ noServer: true });
+  const wss = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', async (request, socket, head) => {
     if (request.url === '/ws/duel') {

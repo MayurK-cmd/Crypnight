@@ -2,269 +2,178 @@ import {
   server,
   STELLAR_TESTNET,
   getAuthorityKeypair,
-  PLATFORM_ESCROW_ACCOUNT,
-  StellarSdk,
+  Asset,
+  Operation,
+  TransactionBuilder,
+  Memo,
+  StrKey,
 } from '../config/solana.js';
-import { supabase } from '../config/supabase.js';
 
-export const settleDuel = async ({ matchId, winnerWallet, session }) => {
+const DUEL_CONTRACT_ID = process.env.STELLAR_DUEL_CONTRACT_ID;
+const DUEL_TREASURY = process.env.STELLAR_DUEL_TREASURY_PUBLIC_KEY;
+
+const settleDuel = async (playerWalletAddress, winningsXlm) => {
+  console.log(`\n🏆 DUEL SETTLEMENT START - Winner: ${playerWalletAddress}, Winnings: ${winningsXlm} XLM\n`);
+
+  if (!playerWalletAddress) {
+    console.error('❌ No wallet address provided');
+    throw new Error('Player has no linked wallet address');
+  }
+  if (winningsXlm <= 0) {
+    console.error('❌ Invalid winnings amount:', winningsXlm);
+    throw new Error('Winnings must be greater than zero');
+  }
+
   try {
-    const authority = getAuthorityKeypair();
+    const authorityKeypair = getAuthorityKeypair();
+    console.log(`✅ Authority keypair loaded: ${authorityKeypair.publicKey()}`);
 
-    console.log(`\n💰 SETTLEMENT START - Match: ${matchId}, Winner: ${winnerWallet}\n`);
-
-    if (!StellarSdk.StrKey.isValidEd25519PublicKey(winnerWallet)) {
-      throw new Error('Invalid winner wallet address');
+    if (!StellarSdk.StrKey.isValidEd25519PublicKey(playerWalletAddress)) {
+      throw new Error('Invalid Stellar wallet address');
     }
+    console.log(`✅ Winner wallet validated: ${playerWalletAddress}`);
 
-    // Get source account for authority
-    const sourceAccount = await server.loadAccount(authority.publicKey());
+    const sourceAccount = await server.loadAccount(authorityKeypair.publicKey());
     console.log(`✅ Authority account loaded, sequence: ${sourceAccount.sequence}`);
 
-    // Calculate settlement amount (pot from escrow)
-    const settlementXlm = (session.pot_xlm || 0).toString();
+    const winnerPayout = (parseFloat(winningsXlm) * 0.80).toFixed(7); // 20% fee deducted
+    const feeXlm = (parseFloat(winningsXlm) * 0.20).toFixed(7);
 
-    if (parseFloat(settlementXlm) <= 0) {
-      console.log(`⚠️  Settlement amount is 0, skipping transaction`);
-      await supabase
-        .from('duel_sessions')
-        .update({
-          settle_tx_signature: 'zero_amount',
-          status: 'settled',
-        })
-        .eq('id', session.id);
-      return { signature: 'zero_amount', status: 'settled' };
-    }
+    console.log(`✅ Duel settlement calculated:`);
+    console.log(`   Total pot: ${winningsXlm} XLM`);
+    console.log(`   Fee (20%): ${feeXlm} XLM`);
+    console.log(`   Winner receives: ${winnerPayout} XLM`);
 
-    // Build transaction to send settlement to winner
     const baseFee = await server.fetchBaseFee();
-    const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+    const transaction = new TransactionBuilder(sourceAccount, {
       fee: Math.ceil(baseFee * 100),
       networkPassphrase: STELLAR_TESTNET.networkPassphrase,
     })
       .addOperation(
-        StellarSdk.Operation.payment({
-          destination: winnerWallet,
-          asset: StellarSdk.Asset.native(),
-          amount: settlementXlm,
+        Operation.payment({
+          destination: playerWalletAddress,
+          asset: Asset.native(),
+          amount: winnerPayout,
         })
       )
-      .addMemo(StellarSdk.Memo.text(`Duel:${matchId.substring(0, 8)}`))
+      .addMemo(Memo.text('CrypNight Duel Win'))
       .setTimeout(300)
       .build();
 
-    console.log(`✅ Settlement transaction built`);
-    console.log(`   Destination: ${winnerWallet}`);
-    console.log(`   Amount: ${settlementXlm} XLM`);
+    console.log(`✅ Transaction built`);
 
-    // Sign transaction
-    transaction.sign(authority);
+    transaction.sign(authorityKeypair);
     console.log(`✅ Transaction signed`);
 
-    // Submit transaction
-    console.log(`🚀 Submitting settlement transaction...`);
+    console.log(`🚀 Submitting settlement to Stellar Testnet...`);
     const result = await server.submitTransaction(transaction);
 
-    console.log(`✅ Settlement transaction confirmed: ${result.hash}`);
+    console.log(`✅ SETTLEMENT SUCCESS`);
+    console.log(`   Tx Hash: ${result.hash}`);
+    console.log(`   Ledger: ${result.ledger}`);
     console.log(`   Explorer: https://stellar.expert/explorer/testnet/tx/${result.hash}\n`);
 
-    // Log to database
-    await supabase
-      .from('duel_sessions')
-      .update({
-        settle_tx_signature: result.hash,
-        status: 'settled',
-      })
-      .eq('id', session.id);
-
-    console.log(`✅ Settlement recorded in database\n`);
-
-    return { signature: result.hash, status: 'settled' };
-  } catch (error) {
-    console.error('Settlement error:', error);
-
-    // Log failure to database
-    await supabase
-      .from('duel_sessions')
-      .update({
-        status: 'settlement_failed',
-      })
-      .eq('id', session.id)
-      .catch(err => console.error('Failed to log settlement failure:', err));
-
-    throw error;
+    return {
+      signature: result.hash,
+      winnerPayout: parseFloat(winnerPayout),
+      fee: parseFloat(feeXlm),
+    };
+  } catch (err) {
+    console.error(`\n❌ SETTLEMENT FAILED`);
+    console.error(`   Error: ${err.message}`);
+    if (err.response) {
+      console.error(`   Response:`, err.response.data || err.response);
+    }
+    console.error(`   Stack: ${err.stack}\n`);
+    throw err;
   }
 };
 
-export const refundDuel = async ({ matchId, playerAWallet, playerBWallet, session }) => {
+const refundDuel = async (player1WalletAddress, player2WalletAddress, refundAmountXlm) => {
+  console.log(`\n♻️ DUEL REFUND START - Players: ${player1WalletAddress.substring(0, 8)}... & ${player2WalletAddress.substring(0, 8)}..., Refund: ${refundAmountXlm} XLM each\n`);
+
+  if (!player1WalletAddress || !player2WalletAddress) {
+    throw new Error('Both player wallet addresses required for refund');
+  }
+  if (refundAmountXlm <= 0) {
+    throw new Error('Refund amount must be greater than zero');
+  }
+
   try {
-    const authority = getAuthorityKeypair();
+    const authorityKeypair = getAuthorityKeypair();
+    console.log(`✅ Authority keypair loaded: ${authorityKeypair.publicKey()}`);
 
-    console.log(`\n🔄 REFUND START - Match: ${matchId}\n`);
+    [player1WalletAddress, player2WalletAddress].forEach(addr => {
+      if (!StellarSdk.StrKey.isValidEd25519PublicKey(addr)) {
+        throw new Error('Invalid Stellar wallet address');
+      }
+    });
+    console.log(`✅ Both player wallets validated`);
 
-    if (!StellarSdk.StrKey.isValidEd25519PublicKey(playerAWallet) ||
-        !StellarSdk.StrKey.isValidEd25519PublicKey(playerBWallet)) {
-      throw new Error('Invalid player wallet addresses');
-    }
+    const sourceAccount = await server.loadAccount(authorityKeypair.publicKey());
+    console.log(`✅ Authority account loaded, sequence: ${sourceAccount.sequence}`);
 
-    // Get source account
-    const sourceAccount = await server.loadAccount(authority.publicKey());
-
-    const refundXlm = (session.stake_xlm || 0).toString();
-
-    if (parseFloat(refundXlm) <= 0) {
-      console.log(`⚠️  Refund amount is 0, skipping transaction`);
-      await supabase
-        .from('duel_sessions')
-        .update({ status: 'refunded' })
-        .eq('id', session.id);
-      return { status: 'refunded' };
-    }
-
-    // Build transaction with two payment operations (one to each player)
     const baseFee = await server.fetchBaseFee();
-    const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-      fee: Math.ceil(baseFee * 200), // Double fee for 2 operations
+    const transaction = new TransactionBuilder(sourceAccount, {
+      fee: Math.ceil(baseFee * 200), // Two operations
       networkPassphrase: STELLAR_TESTNET.networkPassphrase,
     })
       .addOperation(
-        StellarSdk.Operation.payment({
-          destination: playerAWallet,
-          asset: StellarSdk.Asset.native(),
-          amount: refundXlm,
+        Operation.payment({
+          destination: player1WalletAddress,
+          asset: Asset.native(),
+          amount: refundAmountXlm.toString(),
         })
       )
       .addOperation(
-        StellarSdk.Operation.payment({
-          destination: playerBWallet,
-          asset: StellarSdk.Asset.native(),
-          amount: refundXlm,
+        Operation.payment({
+          destination: player2WalletAddress,
+          asset: Asset.native(),
+          amount: refundAmountXlm.toString(),
         })
       )
-      .addMemo(StellarSdk.Memo.text(`Refund:${matchId.substring(0, 8)}`))
+      .addMemo(Memo.text('CrypNight Refund'))
       .setTimeout(300)
       .build();
 
-    console.log(`✅ Refund transaction built`);
-    console.log(`   Player A: ${refundXlm} XLM to ${playerAWallet}`);
-    console.log(`   Player B: ${refundXlm} XLM to ${playerBWallet}`);
+    console.log(`✅ Refund transaction built for both players`);
 
-    // Sign and submit
-    transaction.sign(authority);
+    transaction.sign(authorityKeypair);
     console.log(`✅ Transaction signed`);
 
-    console.log(`🚀 Submitting refund transaction...`);
+    console.log(`🚀 Submitting refund to Stellar Testnet...`);
     const result = await server.submitTransaction(transaction);
 
-    console.log(`✅ Refund transaction confirmed: ${result.hash}\n`);
+    console.log(`✅ REFUND SUCCESS`);
+    console.log(`   Tx Hash: ${result.hash}`);
+    console.log(`   Ledger: ${result.ledger}`);
+    console.log(`   Explorer: https://stellar.expert/explorer/testnet/tx/${result.hash}\n`);
 
-    // Log to database
-    await supabase
-      .from('duel_sessions')
-      .update({
-        settle_tx_signature: result.hash,
-        status: 'refunded',
-      })
-      .eq('id', session.id);
-
-    return { signature: result.hash, status: 'refunded' };
-  } catch (error) {
-    console.error('Refund error:', error);
-
-    await supabase
-      .from('duel_sessions')
-      .update({ status: 'refund_failed' })
-      .eq('id', session.id)
-      .catch(err => console.error('Failed to log refund failure:', err));
-
-    throw error;
-  }
-};
-
-export const forfeitDuel = async ({ matchId, forfeitingPlayer, winnerWallet, session }) => {
-  try {
-    const authority = getAuthorityKeypair();
-
-    console.log(`\n⚠️  FORFEIT START - Match: ${matchId}, Forfeiter: ${forfeitingPlayer}\n`);
-
-    if (!StellarSdk.StrKey.isValidEd25519PublicKey(winnerWallet)) {
-      throw new Error('Invalid winner wallet address');
+    return {
+      signature: result.hash,
+      player1Refund: parseFloat(refundAmountXlm),
+      player2Refund: parseFloat(refundAmountXlm),
+    };
+  } catch (err) {
+    console.error(`\n❌ REFUND FAILED`);
+    console.error(`   Error: ${err.message}`);
+    if (err.response) {
+      console.error(`   Response:`, err.response.data || err.response);
     }
-
-    // Get source account
-    const sourceAccount = await server.loadAccount(authority.publicKey());
-
-    // Winner gets the full pot on forfeit
-    const winningXlm = (session.pot_xlm || 0).toString();
-
-    if (parseFloat(winningXlm) <= 0) {
-      console.log(`⚠️  Forfeit amount is 0, skipping transaction`);
-      await supabase
-        .from('duel_sessions')
-        .update({ status: 'forfeited' })
-        .eq('id', session.id);
-      return { status: 'forfeited' };
-    }
-
-    // Build transaction to send full pot to winner
-    const baseFee = await server.fetchBaseFee();
-    const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-      fee: Math.ceil(baseFee * 100),
-      networkPassphrase: STELLAR_TESTNET.networkPassphrase,
-    })
-      .addOperation(
-        StellarSdk.Operation.payment({
-          destination: winnerWallet,
-          asset: StellarSdk.Asset.native(),
-          amount: winningXlm,
-        })
-      )
-      .addMemo(StellarSdk.Memo.text(`Forfeit:${matchId.substring(0, 8)}`))
-      .setTimeout(300)
-      .build();
-
-    console.log(`✅ Forfeit transaction built`);
-    console.log(`   Winner: ${winningXlm} XLM to ${winnerWallet}`);
-
-    // Sign and submit
-    transaction.sign(authority);
-    console.log(`✅ Transaction signed`);
-
-    console.log(`🚀 Submitting forfeit transaction...`);
-    const result = await server.submitTransaction(transaction);
-
-    console.log(`✅ Forfeit transaction confirmed: ${result.hash}\n`);
-
-    // Log to database
-    await supabase
-      .from('duel_sessions')
-      .update({
-        settle_tx_signature: result.hash,
-        status: 'forfeited',
-      })
-      .eq('id', session.id);
-
-    return { signature: result.hash, status: 'forfeited' };
-  } catch (error) {
-    console.error('Forfeit error:', error);
-
-    await supabase
-      .from('duel_sessions')
-      .update({ status: 'forfeit_failed' })
-      .eq('id', session.id)
-      .catch(err => console.error('Failed to log forfeit failure:', err));
-
-    throw error;
+    console.error(`   Stack: ${err.stack}\n`);
+    throw err;
   }
 };
 
-export const initializeDuelTreasury = async () => {
+const getTreasuryBalance = async () => {
   try {
-    console.log('✅ Duel treasury initialized (Stellar - no on-chain setup needed)');
-    console.log(`   Escrow Account: ${PLATFORM_ESCROW_ACCOUNT}`);
-    return { escrow: PLATFORM_ESCROW_ACCOUNT };
-  } catch (error) {
-    console.error('Initialize treasury error:', error);
-    throw error;
+    const account = await server.loadAccount(DUEL_TREASURY);
+    const nativeBalance = account.balances.find(b => b.asset_type === 'native');
+    return nativeBalance ? parseFloat(nativeBalance.balance) : 0;
+  } catch (err) {
+    console.error('Failed to fetch duel treasury balance:', err);
+    throw err;
   }
 };
+
+export { settleDuel, refundDuel, getTreasuryBalance };

@@ -10,14 +10,14 @@ const HowItWorks = () => {
     {
       number: "02",
       title: "Link Wallet & Tier",
-      desc: "Connect Phantom to claim rewards. Choose your starting tier — Beginner, Intermediate, Pro, or Grandmaster.",
+      desc: "Connect Freighter to claim rewards. Choose your starting tier — Beginner, Intermediate, Pro, or Grandmaster.",
       subtext: "Tier is locked after selection. Wallet binds once.",
       icon: "🔐"
     },
     {
       number: "03",
       title: "Solve & Earn",
-      desc: "Run a 10-puzzle Puzzle Rush. Each solve pays SOL based on tier, speed, and accuracy. Wrong moves cost you a puzzle, three fails ends the run.",
+      desc: "Run a 10-puzzle Puzzle Rush. Each Solve pays XLM based on tier, speed, and accuracy. Wrong moves cost you a puzzle, three fails ends the run.",
       subtext: "97% payout | 3% platform fee.",
       icon: "💎"
     }

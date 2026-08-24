@@ -1,6 +1,6 @@
 import { supabase } from '../config/supabase.js';
 import { DuelManager } from '../services/duelManager.js';
-import { initializeDuelTreasury, settleDuel, refundDuel } from '../services/duelPayoutService.js';
+import { settleDuel, refundDuel } from '../services/duelPayoutService.js';
 
 export const getDuelSession = async (req, res) => {
   try {
@@ -36,20 +36,6 @@ export const getQueueStatus = async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching queue status:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const initializeTreasury = async (req, res) => {
-  try {
-    const treasuryPda = await initializeDuelTreasury();
-
-    res.json({
-      treasuryPda: treasuryPda.toBase58(),
-      message: 'Duel treasury initialized',
-    });
-  } catch (error) {
-    console.error('Error initializing treasury:', error);
     res.status(500).json({ error: error.message });
   }
 };

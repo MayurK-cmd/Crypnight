@@ -1,5 +1,7 @@
 import rateLimit from 'express-rate-limit';
 
+const DEV_MODE = process.env.NODE_ENV === 'development';
+
 // Auth endpoints: key on `email || IP` so a single user's typo-loop is
 // isolated from other users on the same IP (corporate NAT, dev localhost, etc).
 // The IP fallback still protects against an attacker who rotates emails.
@@ -14,7 +16,7 @@ const retryAfter = (req, res) => {
 };
 
 // PHASE 1 §1 — Tight limit for auth endpoints (brute force protection)
-export const authLimiter = rateLimit({
+export const authLimiter = DEV_MODE ? (req, res, next) => next() : rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10,
   standardHeaders: true,
@@ -29,7 +31,7 @@ export const authLimiter = rateLimit({
 });
 
 // PHASE 1 §1 — General API limit (prevents scraping / DoS)
-export const apiLimiter = rateLimit({
+export const apiLimiter = DEV_MODE ? (req, res, next) => next() : rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 60,
   standardHeaders: true,
@@ -39,7 +41,7 @@ export const apiLimiter = rateLimit({
 });
 
 // PHASE 1 §1 — Wallet linking: sensitive, keep very tight
-export const walletLimiter = rateLimit({
+export const walletLimiter = DEV_MODE ? (req, res, next) => next() : rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 5,
   standardHeaders: true,

@@ -1,1 +1,5 @@
 source/
+.agents
+.claude
+skills-lock.json
+docs-local

@@ -79,12 +79,12 @@ export default function Solo() {
         const sessionRes = await API.post("/solo/start", {});
         activeSessionId = sessionRes.data.session_id;
         setPuzzlesInSession(sessionRes.data.puzzles_in_session || 1);
-        setPuzzlesSolved(sessionRes.data.puzzles_solved || 0);
+        setPuzzlesSolved(sessionRes.data.puzzles_Solved || 0);
         setPuzzlesFailed(sessionRes.data.puzzles_failed || 0);
         setTotalReward(sessionRes.data.total_session_reward || 0);
       } else {
         setPuzzlesInSession(puzzleRes.data.puzzles_in_session || 1);
-        setPuzzlesSolved(puzzleRes.data.puzzles_solved || 0);
+        setPuzzlesSolved(puzzleRes.data.puzzles_Solved || 0);
         setPuzzlesFailed(puzzleRes.data.puzzles_failed || 0);
       }
 
@@ -244,7 +244,7 @@ export default function Solo() {
 
       if (res.data.finished) {
         const submitRes = await API.post("/solo/submit", { session_id: sessionId });
-        setPuzzlesSolved(submitRes.data.puzzles_solved);
+        setPuzzlesSolved(submitRes.data.puzzles_Solved);
         setPuzzlesInSession(submitRes.data.puzzles_in_session);
         setPuzzlesFailed(submitRes.data.puzzles_failed);
         setTotalReward(submitRes.data.total_session_reward);
@@ -256,7 +256,7 @@ export default function Solo() {
 
         setPopup({
           type: "success",
-          message: `Solved! +${Number(submitRes.data.reward).toFixed(6)} SOL`,
+          message: `Solved! +${Number(submitRes.data.reward).toFixed(6)} XLM`,
         });
         setTimeout(() => {
           setPopup(null);
@@ -302,7 +302,7 @@ export default function Solo() {
     setSummary({
       new_rating: data.new_rating,
       session_rating_delta: data.session_rating_delta,
-      puzzles_solved: data.puzzles_solved,
+      puzzles_Solved: data.puzzles_Solved,
       puzzles_failed: data.puzzles_failed,
       total_session_reward: data.total_session_reward,
     });
@@ -376,8 +376,8 @@ export default function Solo() {
               </h2>
               <p className="text-slate-400 text-sm font-medium mb-10">
                 {livesExhausted
-                  ? `3 puzzle-fails — the run is over. ${summary.puzzles_solved} solved.`
-                  : `${summary.puzzles_solved} solved · ${summary.puzzles_failed} failed`}
+                  ? `3 puzzle-fails — the run is over. ${summary.puzzles_Solved} Solved.`
+                  : `${summary.puzzles_Solved} Solved · ${summary.puzzles_failed} failed`}
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
@@ -389,7 +389,7 @@ export default function Solo() {
                   <p className="text-4xl font-black italic tracking-tighter">
                     +{Number(summary.total_session_reward).toFixed(6)}
                   </p>
-                  <p className="text-xs text-slate-400 font-bold mt-1">SOL</p>
+                  <p className="text-xs text-slate-400 font-bold mt-1">XLM</p>
                 </div>
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
                   <div className={`flex items-center gap-2 mb-2 ${deltaColor}`}>
@@ -484,7 +484,7 @@ export default function Solo() {
             <div className="mt-4 pt-4 border-t border-white/10">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Session Earnings</p>
               <p className="text-2xl font-black italic text-emerald-400">
-                +{Number(totalReward).toFixed(6)} <span className="text-sm text-slate-500">SOL</span>
+                +{Number(totalReward).toFixed(6)} <span className="text-sm text-slate-500">XLM</span>
               </p>
             </div>
           </div>
@@ -560,7 +560,7 @@ export default function Solo() {
                   onSquareClick,
                   onPieceDrop,
                   squareStyles: { ...lastMoveSquares, ...optionSquares },
-                  id: "solo-board",
+                  id: "Solo-board",
                   arePiecesDraggable: (piece) => {
                     if (!playerColor) return false;
                     return playerColor === 'white' ? piece.color === 'w' : piece.color === 'b';
@@ -602,3 +602,5 @@ export default function Solo() {
     </div>
   );
 }
+
+

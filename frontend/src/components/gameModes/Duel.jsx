@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Chess } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { useWallet } from "../../wallet/WalletProvider";
-import StellarSdk from "stellar-sdk";
+import * as StellarSdk from "stellar-sdk";
 import API from "../../api/axios";
 import { AuthContext } from "../../context/AuthContext";
 import { useDuelSocket } from "../../hooks/useDuelSocket";
@@ -28,10 +28,10 @@ const TIER_LABELS = {
 };
 
 const STAKE_STROOPS = {
-  beginner: 5_000_000,
-  intermediate: 10_000_000,
-  pro: 25_000_000,
-  gm: 50_000_000,
+  beginner: 5_000_000,      // 0.5 XLM
+  intermediate: 10_000_000,  // 1.0 XLM
+  pro: 25_000_000,           // 2.5 XLM
+  gm: 50_000_000,            // 5.0 XLM
 };
 
 const STELLAR_TESTNET = {
@@ -42,7 +42,7 @@ const STELLAR_TESTNET = {
 export default function Duel() {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
-  const { publicKey, sendTransaction } = useWallet();
+  const { publicKey, signTransaction } = useWallet();
 
   // State machine: 'tier_select' | 'queuing' | 'match_found' | 'waiting_both' | 'game' | 'ended'
   const [state, setState] = useState("tier_select");
@@ -93,7 +93,7 @@ export default function Duel() {
   useEffect(() => {
     if (!socket) return;
 
-    const handleMatchFound = ({ matchId: mid, tier, stakeSol, opponent: opp, yourWallet, role }) => {
+    const handleMatchFound = ({ matchId: mid, tier, stakeXLM, opponent: opp, yourWallet, role }) => {
       setMatchId(mid);
       setOpponent(opp);
       setPlayerRole(role);
@@ -131,7 +131,7 @@ export default function Duel() {
 
     try {
       setState("waiting_both");
-      const escrowAccount = import.meta.env.VITE_DUEL_ESCROW_ACCOUNT;
+      const duelTreasuryAccount = import.meta.env.VITE_DUEL_TREASURY_ACCOUNT;
 
       const server = new StellarSdk.Server(STELLAR_TESTNET.horizon);
       const sourceAccount = await server.loadAccount(publicKey);
@@ -146,7 +146,7 @@ export default function Duel() {
       })
         .addOperation(
           StellarSdk.Operation.payment({
-            destination: escrowAccount,
+            destination: duelTreasuryAccount,
             asset: StellarSdk.Asset.native(),
             amount: (stakeStroops / 10_000_000).toString(),
           })
@@ -204,7 +204,7 @@ export default function Duel() {
     onDuelStart(handleDuelStart);
   }, [socket, onDuelStart]);
 
-  // Puzzle solved listener
+  // Puzzle Solved listener
   useEffect(() => {
     if (!socket) return;
 
@@ -270,7 +270,7 @@ export default function Duel() {
     if (!socket) return;
 
     const handleOpponentMove = (data) => {
-      if (data.type === 'opponent:solved_puzzle') {
+      if (data.type === 'opponent:Solved_puzzle') {
         setOpponentPuzzlesSolved(prev => prev + 1);
       } else if (data.type === 'opponent:failed_puzzle') {
         setOpponentPuzzlesFailed(prev => prev + 1);
@@ -278,7 +278,7 @@ export default function Duel() {
           setOpponentLives(data.opponentLivesRemaining);
         }
       } else if (data.type === 'move:valid' && state === 'game') {
-        // My move was valid - auto-play the next move in solution
+        // My move was valid - auto-play the next move in Solution
         const game = chessRef.current;
         if (data.opponentMove) {
           const autoFrom = data.opponentMove.slice(0, 2);
@@ -305,7 +305,7 @@ export default function Duel() {
           });
         }
 
-        // Auto-play next move in solution (opponent's auto-move)
+        // Auto-play next move in Solution (opponent's auto-move)
         if (data.opponentMove) {
           const autoFrom = data.opponentMove.slice(0, 2);
           const autoTo = data.opponentMove.slice(2, 4);
@@ -594,7 +594,7 @@ export default function Duel() {
 
             <div className="bg-white rounded-2xl p-4 text-center mb-6">
               <div className="text-xs text-slate-600 font-bold mb-1">Stake Amount</div>
-              <div className="text-3xl font-black text-emerald-600">{(STAKE_LAMPORTS[selectedTier] / 1e9).toFixed(2)} SOL</div>
+              <div className="text-3xl font-black text-emerald-600">{(STAKE_STROOPS[selectedTier] / 10_000_000).toFixed(1)} XLM</div>
             </div>
 
             <button
@@ -602,7 +602,7 @@ export default function Duel() {
               disabled={!publicKey}
               className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white py-4 rounded-2xl font-black text-lg transition-all cursor-pointer"
             >
-              {publicKey ? "Confirm & Stake (Phantom)" : "Connect Wallet"}
+              {publicKey ? "Confirm & Stake (Freighter)" : "Connect Freighter Wallet"}
             </button>
           </div>
         </div>
@@ -822,7 +822,7 @@ export default function Duel() {
               <p className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-400 mb-2">Match Complete</p>
               <h2 className={`text-4xl md:text-5xl font-black italic tracking-tighter mb-2 ${headlineColor}`}>{headline}</h2>
               <p className="text-slate-300 text-sm mb-8">
-                {result.playerASolved} vs {result.playerBSolved} puzzles solved
+                {result.playerASolved} vs {result.playerBSolved} puzzles Solved
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 mt-6">
@@ -878,3 +878,5 @@ export default function Duel() {
 
   return null;
 }
+
+

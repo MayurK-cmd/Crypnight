@@ -40,7 +40,7 @@ export default function MatchHistory() {
   }, [page]);
 
   // PHASE 5 — each row is now a 10-puzzle run, not a single puzzle.
-  // Read puzzles_in_session / puzzles_solved / puzzles_failed with back-
+  // Read puzzles_in_session / puzzles_Solved / puzzles_failed with back-
   // compat for older rows (the columns may be null on data from Phase 2).
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans p-6 md:p-12 relative overflow-hidden">
@@ -59,7 +59,7 @@ export default function MatchHistory() {
           Match History
         </h2>
         <p className="text-slate-500 font-medium mb-10">
-          Every solo run you played, newest first.
+          Every Solo run you played, newest first.
         </p>
 
         {loading && (
@@ -79,7 +79,7 @@ export default function MatchHistory() {
             // Session-level numbers. Old (Phase 2) rows have these as null
             // and fall back to the per-puzzle fields.
             const isSession = s.puzzles_in_session != null && s.puzzles_in_session > 1;
-            const solved = isSession ? (s.puzzles_solved || 0) : (s.status === 'solved' ? 1 : 0);
+            const Solved = isSession ? (s.puzzles_Solved || 0) : (s.status === 'Solved' ? 1 : 0);
             const failed = isSession ? (s.puzzles_failed || 0) : (s.status === 'failed' ? 1 : 0);
             const total = isSession ? s.puzzles_in_session : 1;
             const reward = s.total_session_reward != null
@@ -91,7 +91,7 @@ export default function MatchHistory() {
               <div
                 key={s.id}
                 className={`flex items-center justify-between p-5 rounded-2xl border ${
-                  s.status === 'solved'
+                  s.status === 'Solved'
                     ? 'border-emerald-100 bg-emerald-50/40'
                     : 'border-red-100 bg-red-50/30'
                 }`}
@@ -111,7 +111,7 @@ export default function MatchHistory() {
                     {isSession ? (
                       <>
                         <span className="inline-flex items-center gap-1 text-emerald-600">
-                          <Trophy size={14} /> {solved}
+                          <Trophy size={14} /> {Solved}
                         </span>
                         <span className="text-slate-300">/</span>
                         <span className="inline-flex items-center gap-1 text-red-500">
@@ -134,14 +134,14 @@ export default function MatchHistory() {
                 </div>
                 <div className="text-right">
                   <div className="font-mono font-bold text-slate-700">
-                    {formatMs(s.solve_time_ms)}
+                    {formatMs(s.Solve_time_ms)}
                   </div>
                   {reward > 0 && (
                     <div className="text-xs font-black text-emerald-600">
-                      +{reward.toFixed(6)} SOL
+                      +{reward.toFixed(6)} XLM
                     </div>
                   )}
-                  {reward === 0 && s.status === 'solved' && (
+                  {reward === 0 && s.status === 'Solved' && (
                     <div className="text-xs font-bold text-slate-400">no reward</div>
                   )}
                 </div>
@@ -175,3 +175,5 @@ export default function MatchHistory() {
     </div>
   );
 }
+
+

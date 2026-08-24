@@ -79,3 +79,5 @@ export default function FreighterProvider({ children }) {
     </WalletContext.Provider>
   );
 }
+
+

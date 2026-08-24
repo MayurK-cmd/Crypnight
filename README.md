@@ -75,8 +75,12 @@ User Session → Backend → Soroban Contract
 Set these environment variables in backend `.env`:
 
 ```env
-STELLAR_RPC_URL=https://soroban-testnet.stellar.org
-STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
+STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
+STELLAR_TESTNET_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
+STELLAR_SOLO_CONTRACT_ID=CBZ2QQ2RFBEZCU74X2YT3DPY3UYC4YKLUF3ZI4YJOOHC563GBHAB26XT
+STELLAR_DUEL_CONTRACT_ID=CAXDXQIEZD5MJT352AIT5TZXMCRZTU5RYLUR7LRULGBDG4IVP7VZHI4P
+STELLAR_SOLO_TREASURY_PUBLIC_KEY=GBI7HSC7LUWMMVDAKXK6YHLFZQY3QYOCTNYF4A6EPAHIRD3X5LOBM3HR
+STELLAR_DUEL_TREASURY_PUBLIC_KEY=GBCZAA7DVP6J422O5GNGKBK66KWZNNGB5GL6AAHRXORCES4OU4TEIYR4
 ```
 
 See [Backend README](./backend/README.md#stellar-integration) for detailed setup.
@@ -108,21 +112,27 @@ Full duel flow: tier selection → matchmaking → deposit confirmation → game
 
 ## Smart Contracts
 
+Deployed on **Stellar Testnet** (Protocol 27 via Soroban).
+
 ### Solo Contract
 
-**Address**: *(Testnet address — to be populated after deployment)*
+**Address**: `CBZ2QQ2RFBEZCU74X2YT3DPY3UYC4YKLUF3ZI4YJOOHC563GBHAB26XT`
 
-Handles puzzle result verification and reward distribution via Soroban.
+**Explorer**: https://stellar.expert/explorer/testnet/contract/CBZ2QQ2RFBEZCU74X2YT3DPY3UYC4YKLUF3ZI4YJOOHC563GBHAB26XT
+
+**Treasury Account**: `GBI7HSC7LUWMMVDAKXK6YHLFZQY3QYOCTNYF4A6EPAHIRD3X5LOBM3HR`
+
+Handles puzzle result verification and reward distribution via Soroban. Tracks 3% platform fees.
 
 ### Duel Contract
 
-**Address**: *(Testnet address — to be populated after deployment)*
+**Address**: `CAXDXQIEZD5MJT352AIT5TZXMCRZTU5RYLUR7LRULGBDG4IVP7VZHI4P`
 
-Manages duel escrows and settlement logic via Soroban.
+**Explorer**: https://stellar.expert/explorer/testnet/contract/CAXDXQIEZD5MJT352AIT5TZXMCRZTU5RYLUR7LRULGBDG4IVP7VZHI4P
 
-**Treasury Account**: *(To be populated after deployment)* — Holds duel match escrows.
+**Treasury Account**: `GBCZAA7DVP6J422O5GNGKBK66KWZNNGB5GL6AAHRXORCES4OU4TEIYR4`
 
-**Demo Escrow Account**: *(To be populated after deployment)* — Testing escrow for Testnet.
+Manages duel escrows and settlement logic via Soroban. Tracks 20% platform fees.
 
 ## Project Structure
 
@@ -144,12 +154,10 @@ crypnight/
 │   │   ├── api/          # Axios client
 │   │   └── App.jsx
 │   └── package.json
-├── crypnight-contracts/  # Soroban smart contracts (Rust)
-│   ├── contracts/
-│   │   ├── crypnight-solo/
-│   │   └── crypnight-duel/
-│   ├── Cargo.toml
-│   └── stellar.toml
+├── contracts/            # Soroban smart contracts (Rust)
+│   ├── solo-mode/        # Solo mode contract
+│   ├── duel-mode/        # Duel mode contract
+│   └── Cargo.toml
 └── README.md             # This file
 ```
 
