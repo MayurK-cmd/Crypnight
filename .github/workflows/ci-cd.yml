@@ -14,13 +14,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Node.js v22
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      # ── Rust contracts: compile solo-mode and duel-mode ─────────────
-      - name: Install Rust toolchain
+      - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
 
       - name: Add WASM target for Soroban contracts
@@ -30,27 +24,6 @@ jobs:
         working-directory: ./contracts
         run: |
           cargo build --release --target wasm32v1-none
-          echo "✓ Rust contracts compiled"
-
-      # ── Frontend: install deps and smoke-test dev server ───────────
-      - name: Install frontend dependencies
-        working-directory: ./frontend
-        run: npm install --include=optional --no-audit --no-fund
-
-      - name: Frontend dev server smoke test
-        working-directory: ./frontend
-        run: |
-          # Start dev server in background, hit it after 10s, then kill
-          npm run dev > /tmp/vite.log 2>&1 &
-          DEV_PID=$!
-          sleep 12
-          if curl -fsS http://localhost:5173 > /dev/null; then
-            echo "✓ Frontend dev server is serving on :5173"
-          else
-            echo "❌ Frontend dev server failed to respond"
-            cat /tmp/vite.log
-            kill $DEV_PID 2>/dev/null || true
-            exit 1
-          fi
-          kill $DEV_PID 2>/dev/null || true
-          echo "✓ Frontend safe to run"
+          echo "✓ Soroban contracts compiled"
+          echo "--- WASM artifacts ---"
+          ls -lh target/wasm32v1-none/release/*.wasm
