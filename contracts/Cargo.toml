@@ -1,6 +1,8 @@
 [workspace]
 members = [
-    "programs/*"
+    "programs/*",
+    "solo-mode",
+    "duel-mode"
 ]
 resolver = "2"
 

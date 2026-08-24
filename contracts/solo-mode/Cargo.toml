@@ -1,5 +1,5 @@
 [package]
-name = "crypnight-solo"
+name = "crypnight-solo-soroban"
 version = "0.1.0"
 edition = "2021"
 
