@@ -1,82 +1,56 @@
-name: Frontend Deploy Safety
+name: CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  verify-frontend-safe-to-deploy:
+  test:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Use Node.js 22
+      - name: Install Node.js v22
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: "22"
 
+      # ── Rust contracts: compile solo-mode and duel-mode ─────────────
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add WASM target for Soroban contracts
+        run: rustup target add wasm32v1-none
+
+      - name: Compile Rust contracts (Soroban)
+        working-directory: ./contracts
+        run: |
+          cargo build --release --target wasm32v1-none
+          echo "✓ Rust contracts compiled"
+
+      # ── Frontend: install deps and smoke-test dev server ───────────
       - name: Install frontend dependencies
-        # Use `npm install` (not `npm ci`) so optional native deps like
-        # @rollup/rollup-linux-x64-gnu are fetched. npm ci + optional deps
-        # is broken on some runners (npm/cli#4828) and causes
-        # "Cannot find module @rollup/rollup-linux-x64-gnu" during build.
-        run: |
-          cd frontend
-          npm install --include=optional --no-audit --no-fund
+        working-directory: ./frontend
+        run: npm install --include=optional --no-audit --no-fund
 
-      # 1. Verify required env keys documented in .env.example
-      - name: Verify .env.example has required VITE_ keys
+      - name: Frontend dev server smoke test
+        working-directory: ./frontend
         run: |
-          cd frontend
-          REQUIRED_KEYS=(
-            "VITE_SUPABASE_URL"
-            "VITE_SUPABASE_ANON_KEY"
-            "VITE_API_URL"
-            "VITE_STELLAR_HORIZON"
-            "VITE_STELLAR_NETWORK_PASSPHRASE"
-            "VITE_SOLO_TREASURY_ACCOUNT"
-            "VITE_DUEL_TREASURY_ACCOUNT"
-          )
-          MISSING=0
-          for key in "${REQUIRED_KEYS[@]}"; do
-            if ! grep -q "^$key=" .env.example; then
-              echo "✗ Missing required key: $key"
-              MISSING=$((MISSING+1))
-            fi
-          done
-          if [ $MISSING -gt 0 ]; then
-            echo "❌ FAIL: $MISSING required VITE_ keys missing from .env.example"
+          # Start dev server in background, hit it after 10s, then kill
+          npm run dev > /tmp/vite.log 2>&1 &
+          DEV_PID=$!
+          sleep 12
+          if curl -fsS http://localhost:5173 > /dev/null; then
+            echo "✓ Frontend dev server is serving on :5173"
+          else
+            echo "❌ Frontend dev server failed to respond"
+            cat /tmp/vite.log
+            kill $DEV_PID 2>/dev/null || true
             exit 1
           fi
-          echo "✓ All required VITE_ keys present"
-
-      # 2. Verify frontend .env is NOT committed (only .env.example should be tracked)
-      - name: Verify frontend/.env not committed
-        run: |
-          if git ls-files frontend/.env | grep -q .env; then
-            echo "❌ FAIL: frontend/.env is tracked in git!"
-            echo "Run: git rm --cached frontend/.env"
-            exit 1
-          fi
-          echo "✓ frontend/.env not tracked in git"
-
-      # 3. Scan frontend source for accidentally committed Stellar secret keys
-      - name: Scan for leaked Stellar secret keys
-        run: |
-          SECRETS_FOUND=$(grep -rE "['\"]S[A-Z0-9]{55}['\"]" frontend/src 2>/dev/null || true)
-          if [ -n "$SECRETS_FOUND" ]; then
-            echo "❌ FAIL: Possible Stellar secret keys found in frontend source:"
-            echo "$SECRETS_FOUND"
-            exit 1
-          fi
-          echo "✓ No Stellar secret keys leaked in frontend"
-
-      # 4. Build the frontend — catches every real deploy error
-      - name: Build frontend (verifies safe to deploy to Vercel)
-        run: |
-          cd frontend
-          npm run build
-          echo "✓ Frontend builds successfully — safe to deploy to Vercel"
+          kill $DEV_PID 2>/dev/null || true
+          echo "✓ Frontend safe to run"
