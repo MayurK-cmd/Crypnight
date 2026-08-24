@@ -2,7 +2,9 @@
 
 A full-stack chess puzzle game built on Stellar blockchain with wallet-based authentication and Soroban smart contracts.
 
-🎮 **[Live Demo](https://crypnight.vercel.app/)** | 📊 **[GitHub](https://github.com/yourusername/crypnight)** | 🔗 **[Stellar Expert - Solo Contract](https://stellar.expert/explorer/testnet/contract/CBZ2QQ2RFBEZCU74X2YT3DPY3UYC4YKLUF3ZI4YJOOHC563GBHAB26XT)**
+🎮 **[Live Demo](https://crypnight.vercel.app/)** | 📊 **[GitHub](https://github.com/MayurK-cmd/Crypnight)** | 🔗 **[Stellar Expert - Solo Contract](https://stellar.expert/explorer/testnet/contract/CBZ2QQ2RFBEZCU74X2YT3DPY3UYC4YKLUF3ZI4YJOOHC563GBHAB26XT)**
+
+[![CI/CD Pipeline](https://github.com/MayurK-cmd/Crypnight/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/MayurK-cmd/Crypnight/actions/workflows/ci-cd.yml)
 
 ## ✨ Features
 
@@ -54,7 +56,7 @@ A full-stack chess puzzle game built on Stellar blockchain with wallet-based aut
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/crypnight.git
+git clone https://github.com/MayurK-cmd/Crypnight.git
 cd crypnight
 ```
 
@@ -88,13 +90,13 @@ SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 NODE_ENV=development
 
-# Stellar Keys
-STELLAR_SOLO_TREASURY_PUBLIC_KEY=GBI7HSC7LUWMMVDAKXK6YHLFZQY3QYOCTNYF4A6EPAHIRD3X5LOBM3HR
-STELLAR_SOLO_TREASURY_SECRET_KEY=SA35MY45J3CKYWEGQP5CMLXUF7LAIZNSURPIMVBQYZ4BSUS35LWXWS7B
-STELLAR_DUEL_TREASURY_PUBLIC_KEY=GBCZAA7DVP6J422O5GNGKBK66KWZNNGB5GL6AAHRXORCES4OU4TEIYR4
-STELLAR_DUEL_TREASURY_SECRET_KEY=SCMBKC6UGJXOO6PPQBHUCHQ7IZKGDAQQYTSLDKK2VG6ZFMVZB2JKZIPV
+# Stellar Keys (get from your Freighter wallet or create new keypairs)
+STELLAR_SOLO_TREASURY_PUBLIC_KEY=your-public-key
+STELLAR_SOLO_TREASURY_SECRET_KEY=your-secret-key
+STELLAR_DUEL_TREASURY_PUBLIC_KEY=your-public-key
+STELLAR_DUEL_TREASURY_SECRET_KEY=your-secret-key
 
-# Soroban Contracts
+# Soroban Contracts (deployed addresses)
 STELLAR_SOLO_CONTRACT_ID=CBZ2QQ2RFBEZCU74X2YT3DPY3UYC4YKLUF3ZI4YJOOHC563GBHAB26XT
 STELLAR_DUEL_CONTRACT_ID=CAXDXQIEZD5MJT352AIT5TZXMCRZTU5RYLUR7LRULGBDG4IVP7VZHI4P
 ```
@@ -172,7 +174,7 @@ npm test -- tests/contract.test.js
 - **Transaction Hash:** `4dcd5bc19fc8a0ff282923db9039e7ee3ef8af0212067321ecd8a6edc053305b`
 - **Amount:** 9.2294909 XLM
 - **Sender:** GBI7HSC7LUWMMVDAKXK6YHLFZQY3QYOCTNYF4A6EPAHIRD3X5LOBM3HR (Solo Treasury)
-- **Recipient:** GBPMWOIGRMK7UQVAISO32642KUMKZM2EBLLXAXBA5J5DHGZEMPZWV75Y
+- **Recipient:** GBPMWOIGRMK7UQVAISO32642KUMKZM2EBLLXAXBA5J35DHGZEMPZWV75Y
 - **Ledger:** 4310222
 - **Network:** Stellar Testnet
 - **Explorer Link:** https://stellar.expert/explorer/testnet/tx/4dcd5bc19fc8a0ff282923db9039e7ee3ef8af0212067321ecd8a6edc053305b
@@ -212,9 +214,10 @@ npm test -- tests/contract.test.js
 
 GitHub Actions workflow automatically runs tests on every push and PR:
 - Location: `.github/workflows/ci-cd.yml`
-- Runs: Node 18.x and 20.x
+- Runs: Node 20.x and 22.x
 - Tests backend, frontend, and contracts
 - Build verification included
+- Status: ![CI/CD Pipeline](https://github.com/MayurK-cmd/Crypnight/actions/workflows/ci-cd.yml/badge.svg)
 
 ## 🏗 Architecture
 
