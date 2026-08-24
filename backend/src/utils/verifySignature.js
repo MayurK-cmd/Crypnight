@@ -1,10 +1,26 @@
-import nacl from 'tweetnacl';
-import bs58 from 'bs58';
+import StellarSdk from 'stellar-sdk';
 
 export const verifySignature = (message, signature, publicKey) => {
-    const messageUnit8 = new TextEncoder().encode(message);
-    const signatureUnit8 = bs58.decode(signature);
-    const publicKeyUnit8 = bs58.decode(publicKey);
+  try {
+    // Verify the public key is valid Stellar format
+    if (!StellarSdk.StrKey.isValidEd25519PublicKey(publicKey)) {
+      console.error('Invalid Stellar public key format');
+      return false;
+    }
 
-    return nacl.sign.detached.verify(messageUnit8, signatureUnit8, publicKeyUnit8);
+    // Create keypair from public key
+    const keypair = StellarSdk.Keypair.fromPublicKey(publicKey);
+
+    // Encode message
+    const messageBuffer = Buffer.from(message, 'utf-8');
+
+    // Signature should be base64 encoded (Stellar standard)
+    const signatureBuffer = Buffer.from(signature, 'base64');
+
+    // Verify using Stellar SDK
+    return keypair.verify(messageBuffer, signatureBuffer);
+  } catch (err) {
+    console.error('Signature verification error:', err.message);
+    return false;
+  }
 };

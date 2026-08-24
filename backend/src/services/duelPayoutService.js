@@ -1,102 +1,11 @@
-import * as anchor from '@coral-xyz/anchor';
-import { createHash } from 'crypto';
-import { sendAndConfirmTransaction } from '@solana/web3.js';
-import { erConnection, getAuthorityKeypair } from '../config/solana.js';
+import {
+  server,
+  STELLAR_TESTNET,
+  getAuthorityKeypair,
+  PLATFORM_ESCROW_ACCOUNT,
+  StellarSdk,
+} from '../config/solana.js';
 import { supabase } from '../config/supabase.js';
-
-const DUEL_PROGRAM_ID = process.env.DUEL_PROGRAM_ID || 'CbcMMMUwUN81hWiNkxcwNiatL6G8ghuBGVTBkJVgQYSx';
-const DUEL_TREASURY_SEED = Buffer.from('duel_treasury');
-const DUEL_ESCROW_SEED = Buffer.from('duel_escrow');
-
-let duelIdl = null;
-
-const getDuelProgram = async () => {
-  if (!duelIdl) {
-    try {
-      const response = await fetch(
-        `https://api.devnet.solana.com/?id=1`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'getProgramAccounts',
-            params: [DUEL_PROGRAM_ID, { dataSlice: { offset: 0, length: 0 } }],
-          }),
-        }
-      );
-
-      // Fallback IDL structure for duel program
-      duelIdl = {
-        version: '0.1.0',
-        name: 'crypnight_duel',
-        instructions: [
-          {
-            name: 'settleDuel',
-            accounts: [],
-            args: [{ name: 'winner', type: 'publicKey' }],
-          },
-          {
-            name: 'refundDuel',
-            accounts: [],
-            args: [],
-          },
-          {
-            name: 'forfeitDuel',
-            accounts: [],
-            args: [{ name: 'forfeitingPlayer', type: 'publicKey' }],
-          },
-        ],
-      };
-    } catch (err) {
-      console.warn('Could not fetch IDL, using fallback:', err.message);
-      duelIdl = {
-        version: '0.1.0',
-        name: 'crypnight_duel',
-        instructions: [],
-      };
-    }
-  }
-
-  try {
-    const authority = getAuthorityKeypair();
-    console.log('[getDuelProgram] Authority pubkey:', authority.publicKey.toBase58());
-    console.log('[getDuelProgram] DUEL_PROGRAM_ID:', DUEL_PROGRAM_ID);
-
-    const programId = new anchor.web3.PublicKey(DUEL_PROGRAM_ID);
-    console.log('[getDuelProgram] Converted programId:', programId.toBase58());
-
-    const program = new anchor.Program(
-      duelIdl,
-      programId,
-      new anchor.AnchorProvider(erConnection, authority, {})
-    );
-    return program;
-  } catch (err) {
-    console.error('[getDuelProgram] Error creating program:', err.message);
-    throw err;
-  }
-};
-
-// Derive duel treasury PDA
-const getDuelTreasuryPda = () => {
-  const [pda] = anchor.web3.PublicKey.findProgramAddressSync(
-    [DUEL_TREASURY_SEED],
-    new anchor.web3.PublicKey(DUEL_PROGRAM_ID)
-  );
-  return pda;
-};
-
-// Derive duel escrow PDA from match_id
-const getDuelEscrowPda = (matchId) => {
-  const matchIdHash = createHash('sha256').update(matchId).digest();
-  const [pda] = anchor.web3.PublicKey.findProgramAddressSync(
-    [DUEL_ESCROW_SEED, matchIdHash],
-    new anchor.web3.PublicKey(DUEL_PROGRAM_ID)
-  );
-  return pda;
-};
 
 export const settleDuel = async ({ matchId, winnerWallet, session }) => {
   try {
@@ -104,43 +13,85 @@ export const settleDuel = async ({ matchId, winnerWallet, session }) => {
 
     console.log(`\n💰 SETTLEMENT START - Match: ${matchId}, Winner: ${winnerWallet}\n`);
 
-    // Manually construct the instruction since we don't have full IDL
-    const instruction = anchor.web3.SystemProgram.transfer({
-      fromPubkey: authority.publicKey,
-      toPubkey: new anchor.web3.PublicKey(winnerWallet),
-      lamports: 1, // Placeholder — actual settlement happens in contract
-    });
+    if (!StellarSdk.StrKey.isValidEd25519PublicKey(winnerWallet)) {
+      throw new Error('Invalid winner wallet address');
+    }
 
-    console.log(`✅ Transfer instruction created`);
-    console.log(`   From: ${authority.publicKey.toBase58()}`);
-    console.log(`   To: ${winnerWallet}`);
+    // Get source account for authority
+    const sourceAccount = await server.loadAccount(authority.publicKey());
+    console.log(`✅ Authority account loaded, sequence: ${sourceAccount.sequence}`);
 
-    const tx = new anchor.web3.Transaction().add(instruction);
+    // Calculate settlement amount (pot from escrow)
+    const settlementXlm = (session.pot_xlm || 0).toString();
 
-    console.log(`🚀 Sending transaction via Magic Block ER...`);
-    const signature = await sendAndConfirmTransaction(
-      erConnection,
-      tx,
-      [authority],
-      { commitment: 'confirmed' }
-    );
+    if (parseFloat(settlementXlm) <= 0) {
+      console.log(`⚠️  Settlement amount is 0, skipping transaction`);
+      await supabase
+        .from('duel_sessions')
+        .update({
+          settle_tx_signature: 'zero_amount',
+          status: 'settled',
+        })
+        .eq('id', session.id);
+      return { signature: 'zero_amount', status: 'settled' };
+    }
 
-    console.log(`✅ Settlement transaction confirmed: ${signature}`);
+    // Build transaction to send settlement to winner
+    const baseFee = await server.fetchBaseFee();
+    const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+      fee: Math.ceil(baseFee * 100),
+      networkPassphrase: STELLAR_TESTNET.networkPassphrase,
+    })
+      .addOperation(
+        StellarSdk.Operation.payment({
+          destination: winnerWallet,
+          asset: StellarSdk.Asset.native(),
+          amount: settlementXlm,
+        })
+      )
+      .addMemo(StellarSdk.Memo.text(`Duel:${matchId.substring(0, 8)}`))
+      .setTimeout(300)
+      .build();
+
+    console.log(`✅ Settlement transaction built`);
+    console.log(`   Destination: ${winnerWallet}`);
+    console.log(`   Amount: ${settlementXlm} XLM`);
+
+    // Sign transaction
+    transaction.sign(authority);
+    console.log(`✅ Transaction signed`);
+
+    // Submit transaction
+    console.log(`🚀 Submitting settlement transaction...`);
+    const result = await server.submitTransaction(transaction);
+
+    console.log(`✅ Settlement transaction confirmed: ${result.hash}`);
+    console.log(`   Explorer: https://stellar.expert/explorer/testnet/tx/${result.hash}\n`);
 
     // Log to database
     await supabase
       .from('duel_sessions')
       .update({
-        settlement_tx_signature: signature,
+        settle_tx_signature: result.hash,
         status: 'settled',
       })
       .eq('id', session.id);
 
     console.log(`✅ Settlement recorded in database\n`);
 
-    return { signature, status: 'settled' };
+    return { signature: result.hash, status: 'settled' };
   } catch (error) {
     console.error('Settlement error:', error);
+
+    // Log failure to database
+    await supabase
+      .from('duel_sessions')
+      .update({
+        status: 'settlement_failed',
+      })
+      .eq('id', session.id)
+      .catch(err => console.error('Failed to log settlement failure:', err));
+
     throw error;
   }
 };
@@ -149,53 +100,169 @@ export const refundDuel = async ({ matchId, playerAWallet, playerBWallet, sessio
   try {
     const authority = getAuthorityKeypair();
 
-    const escrowPda = getDuelEscrowPda(matchId);
+    console.log(`\n🔄 REFUND START - Match: ${matchId}\n`);
 
-    // Log refund to database
+    if (!StellarSdk.StrKey.isValidEd25519PublicKey(playerAWallet) ||
+        !StellarSdk.StrKey.isValidEd25519PublicKey(playerBWallet)) {
+      throw new Error('Invalid player wallet addresses');
+    }
+
+    // Get source account
+    const sourceAccount = await server.loadAccount(authority.publicKey());
+
+    const refundXlm = (session.stake_xlm || 0).toString();
+
+    if (parseFloat(refundXlm) <= 0) {
+      console.log(`⚠️  Refund amount is 0, skipping transaction`);
+      await supabase
+        .from('duel_sessions')
+        .update({ status: 'refunded' })
+        .eq('id', session.id);
+      return { status: 'refunded' };
+    }
+
+    // Build transaction with two payment operations (one to each player)
+    const baseFee = await server.fetchBaseFee();
+    const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+      fee: Math.ceil(baseFee * 200), // Double fee for 2 operations
+      networkPassphrase: STELLAR_TESTNET.networkPassphrase,
+    })
+      .addOperation(
+        StellarSdk.Operation.payment({
+          destination: playerAWallet,
+          asset: StellarSdk.Asset.native(),
+          amount: refundXlm,
+        })
+      )
+      .addOperation(
+        StellarSdk.Operation.payment({
+          destination: playerBWallet,
+          asset: StellarSdk.Asset.native(),
+          amount: refundXlm,
+        })
+      )
+      .addMemo(StellarSdk.Memo.text(`Refund:${matchId.substring(0, 8)}`))
+      .setTimeout(300)
+      .build();
+
+    console.log(`✅ Refund transaction built`);
+    console.log(`   Player A: ${refundXlm} XLM to ${playerAWallet}`);
+    console.log(`   Player B: ${refundXlm} XLM to ${playerBWallet}`);
+
+    // Sign and submit
+    transaction.sign(authority);
+    console.log(`✅ Transaction signed`);
+
+    console.log(`🚀 Submitting refund transaction...`);
+    const result = await server.submitTransaction(transaction);
+
+    console.log(`✅ Refund transaction confirmed: ${result.hash}\n`);
+
+    // Log to database
     await supabase
       .from('duel_sessions')
       .update({
+        settle_tx_signature: result.hash,
         status: 'refunded',
       })
       .eq('id', session.id);
 
-    return { status: 'refunded' };
+    return { signature: result.hash, status: 'refunded' };
   } catch (error) {
     console.error('Refund error:', error);
+
+    await supabase
+      .from('duel_sessions')
+      .update({ status: 'refund_failed' })
+      .eq('id', session.id)
+      .catch(err => console.error('Failed to log refund failure:', err));
+
     throw error;
   }
 };
 
-export const forfeitDuel = async ({ matchId, forfeitingPlayer, session }) => {
+export const forfeitDuel = async ({ matchId, forfeitingPlayer, winnerWallet, session }) => {
   try {
     const authority = getAuthorityKeypair();
 
-    const escrowPda = getDuelEscrowPda(matchId);
+    console.log(`\n⚠️  FORFEIT START - Match: ${matchId}, Forfeiter: ${forfeitingPlayer}\n`);
 
-    // Log forfeit to database
+    if (!StellarSdk.StrKey.isValidEd25519PublicKey(winnerWallet)) {
+      throw new Error('Invalid winner wallet address');
+    }
+
+    // Get source account
+    const sourceAccount = await server.loadAccount(authority.publicKey());
+
+    // Winner gets the full pot on forfeit
+    const winningXlm = (session.pot_xlm || 0).toString();
+
+    if (parseFloat(winningXlm) <= 0) {
+      console.log(`⚠️  Forfeit amount is 0, skipping transaction`);
+      await supabase
+        .from('duel_sessions')
+        .update({ status: 'forfeited' })
+        .eq('id', session.id);
+      return { status: 'forfeited' };
+    }
+
+    // Build transaction to send full pot to winner
+    const baseFee = await server.fetchBaseFee();
+    const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+      fee: Math.ceil(baseFee * 100),
+      networkPassphrase: STELLAR_TESTNET.networkPassphrase,
+    })
+      .addOperation(
+        StellarSdk.Operation.payment({
+          destination: winnerWallet,
+          asset: StellarSdk.Asset.native(),
+          amount: winningXlm,
+        })
+      )
+      .addMemo(StellarSdk.Memo.text(`Forfeit:${matchId.substring(0, 8)}`))
+      .setTimeout(300)
+      .build();
+
+    console.log(`✅ Forfeit transaction built`);
+    console.log(`   Winner: ${winningXlm} XLM to ${winnerWallet}`);
+
+    // Sign and submit
+    transaction.sign(authority);
+    console.log(`✅ Transaction signed`);
+
+    console.log(`🚀 Submitting forfeit transaction...`);
+    const result = await server.submitTransaction(transaction);
+
+    console.log(`✅ Forfeit transaction confirmed: ${result.hash}\n`);
+
+    // Log to database
     await supabase
       .from('duel_sessions')
       .update({
+        settle_tx_signature: result.hash,
         status: 'forfeited',
       })
       .eq('id', session.id);
 
-    return { status: 'forfeited' };
+    return { signature: result.hash, status: 'forfeited' };
   } catch (error) {
     console.error('Forfeit error:', error);
+
+    await supabase
+      .from('duel_sessions')
+      .update({ status: 'forfeit_failed' })
+      .eq('id', session.id)
+      .catch(err => console.error('Failed to log forfeit failure:', err));
+
     throw error;
   }
 };
 
 export const initializeDuelTreasury = async () => {
   try {
-    const authority = getAuthorityKeypair();
-    const program = await getDuelProgram();
-
-    const treasuryPda = getDuelTreasuryPda();
-
-    console.log('Duel treasury PDA:', treasuryPda.toBase58());
-    return treasuryPda;
+    console.log('✅ Duel treasury initialized (Stellar - no on-chain setup needed)');
+    console.log(`   Escrow Account: ${PLATFORM_ESCROW_ACCOUNT}`);
+    return { escrow: PLATFORM_ESCROW_ACCOUNT };
   } catch (error) {
     console.error('Initialize treasury error:', error);
     throw error;

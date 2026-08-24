@@ -1,15 +1,15 @@
 // PHASE 2 §2.1 — Reward formula
 //
-// All values are in SOL. The payout is computed server-side at submit time and
+// All values are in XLM. The payout is computed server-side at submit time and
 // never trusts the frontend. The frontend never sends solve time.
 //
 // tier difficulty rating       formula multiplier
-// beginner   800–1200   0.001 SOL    1.0x at rating 1500
-// intermediate 1200–1600 0.003 SOL
-// pro        1600–1900  0.008 SOL
-// gm         1900–2500  0.020 SOL
+// beginner   800–1200   0.001 XLM    1.0x at rating 1500
+// intermediate 1200–1600 0.003 XLM
+// pro        1600–1900  0.008 XLM
+// gm         1900–2500  0.020 XLM
 //
-// Final reward is rounded to 6 decimal places (lamport-friendly on Solana).
+// Final reward is rounded to 7 decimal places (stroops-friendly on Stellar).
 
 import { TIER_BASE_REWARD, normalizeTier } from './tiers.js';
 
@@ -35,7 +35,7 @@ export const MAX_SOLO_SESSION_MS = 10 * 60 * 1000;
  * @param {number} args.puzzleRating
  * @param {string} args.tier
  * @param {number} args.wrongMoves
- * @returns {number} reward in SOL, rounded to 6 decimal places
+ * @returns {number} reward in XLM, rounded to 7 decimal places
  */
 export const calculateReward = ({ solveTimeMs, puzzleRating, tier, wrongMoves }) => {
   const tierKey = normalizeTier(tier) || 'beginner';
@@ -50,9 +50,9 @@ export const calculateReward = ({ solveTimeMs, puzzleRating, tier, wrongMoves })
   const gross = base * difficulty * speed * accuracy;
   const net = gross * (1 - SOLO_PLATFORM_FEE);
 
-  // Round to 6 decimal places so the value can be safely sent to a Solana tx
-  // without floating-point noise at the lamport scale.
-  return Math.round(net * 1_000_000) / 1_000_000;
+  // Round to 7 decimal places so the value can be safely sent to a Stellar tx
+  // without floating-point noise at the stroops scale (1 XLM = 10,000,000 stroops).
+  return Math.round(net * 10_000_000) / 10_000_000;
 };
 
 /**

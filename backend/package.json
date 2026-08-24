@@ -10,11 +10,8 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@coral-xyz/anchor": "^0.32.1",
-    "@magicblock-labs/ephemeral-rollups-sdk": "^0.16.2",
-    "@solana/web3.js": "^1.98.4",
+    "stellar-sdk": "^11.3.0",
     "@supabase/supabase-js": "^2.95.3",
-    "bs58": "^6.0.0",
     "chess.js": "^1.4.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.6",
