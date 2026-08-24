@@ -5,7 +5,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import http from 'http';
 
-import authRoutes from './src/routes/auth.routes.js';
+import walletRoutes from './src/routes/wallet.routes.js';
 import userRoutes from './src/routes/user.routes.js';
 import puzzleRoutes from './src/routes/puzzle.routes.js';
 import soloRoutes from './src/routes/solo.routes.js';
@@ -76,15 +76,15 @@ app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 // PHASE 1 §1 — general API rate limit (must come before routes)
 app.use('/api', apiLimiter);
 
-// PHASE 1 §1 — tight limit on auth endpoints (must come before the auth router)
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/signup', authLimiter);
+// PHASE 1 §1 — tight limit on wallet auth endpoints (must come before the wallet router)
+app.use('/api/wallet/nonce', authLimiter);
+app.use('/api/wallet/verify', authLimiter);
 
 app.get('/health', (req, res) => {
     res.status(200).json({ message: 'Server is healthy' });
 });
 
-app.use('/api/auth', authRoutes);
+app.use('/api/wallet', walletRoutes);
 app.use('/api/user', userRoutes);
 // Middleware to ensure puzzles are loaded before handling puzzle/solo requests
 const ensurePuzzlesReady = (req, res, next) => {

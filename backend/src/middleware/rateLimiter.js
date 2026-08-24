@@ -16,7 +16,21 @@ const retryAfter = (req, res) => {
 };
 
 // PHASE 1 §1 — Tight limit for auth endpoints (brute force protection)
-export const authLimiter = DEV_MODE ? (req, res, next) => next() : rateLimit({
+// Development mode: very generous limits (1000 attempts per hour)
+// Production: 10 attempts per 15 minutes
+export const authLimiter = DEV_MODE ? rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 1000, // 1000 attempts per hour in dev
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: authKey,
+  handler: (req, res) => {
+    retryAfter(req, res);
+    res.status(429).json({
+      error: 'Too many attempts. Please try again later.',
+    });
+  },
+}) : rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10,
   standardHeaders: true,
@@ -31,7 +45,16 @@ export const authLimiter = DEV_MODE ? (req, res, next) => next() : rateLimit({
 });
 
 // PHASE 1 §1 — General API limit (prevents scraping / DoS)
-export const apiLimiter = DEV_MODE ? (req, res, next) => next() : rateLimit({
+// Development: very generous (10000 per minute)
+// Production: 60 per minute
+export const apiLimiter = DEV_MODE ? rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10000, // 10000 attempts per minute in dev
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  handler: (req, res) => res.status(429).json({ error: 'Rate limit exceeded. Slow down.' }),
+}) : rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 60,
   standardHeaders: true,
@@ -41,7 +64,19 @@ export const apiLimiter = DEV_MODE ? (req, res, next) => next() : rateLimit({
 });
 
 // PHASE 1 §1 — Wallet linking: sensitive, keep very tight
-export const walletLimiter = DEV_MODE ? (req, res, next) => next() : rateLimit({
+// Development: generous (100 per hour)
+// Production: 5 per hour
+export const walletLimiter = DEV_MODE ? rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id || req.ip,
+  handler: (req, res) => {
+    retryAfter(req, res);
+    res.status(429).json({ error: 'Too many wallet link attempts. Try again later.' });
+  },
+}) : rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 5,
   standardHeaders: true,

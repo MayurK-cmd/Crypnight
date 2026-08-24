@@ -5,10 +5,15 @@
   "private": true,
   "scripts": {
     "dev": "node index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:contract": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/contract.test.js",
+    "lint": "eslint ."
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "jest": "^29.7.0",
+    "@jest/globals": "^29.7.0"
   },
   "peerDependencies": {
     "typescript": "^5"

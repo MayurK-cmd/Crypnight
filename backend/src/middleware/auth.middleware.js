@@ -16,6 +16,29 @@ export const verifyUser = async (req, res, next) => {
     return res.status(401).json({ message: 'Unauthorized, token missing' });
   }
 
+  // For wallet-based auth tokens (format: userId.timestamp)
+  // Extract the user ID from the token
+  const parts = token.split('.');
+  if (parts.length === 2) {
+    const userId = parts[0];
+
+    // Verify the user exists
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error || !user) {
+      return res.status(401).json({ message: 'Unauthorized, invalid token' });
+    }
+
+    req.user = { id: userId };
+    req.authToken = token;
+    return next();
+  }
+
+  // Fallback to Supabase JWT validation for traditional tokens
   const { data, error } = await supabase.auth.getUser(token);
 
   if (error || !data?.user) {

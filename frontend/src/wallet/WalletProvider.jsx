@@ -1,5 +1,12 @@
 import { useMemo } from "react";
 import { createContext, useContext, useState, useEffect } from "react";
+import {
+  isConnected as freighterIsConnected,
+  getAddress,
+  setAllowed,
+  signTransaction as freighterSignTransaction,
+  signMessage as freighterSignMessage,
+} from "@stellar/freighter-api";
 
 const WalletContext = createContext();
 
@@ -15,37 +22,56 @@ export default function FreighterProvider({ children }) {
   const [wallet, setWallet] = useState(null);
   const [connected, setConnected] = useState(false);
   const [publicKey, setPublicKey] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const checkFreighter = async () => {
-      if (window.freighter) {
-        setWallet(window.freighter);
-        try {
-          const publicKey = await window.freighter.getPublicKey();
-          setPublicKey(publicKey);
+    const initFreighter = async () => {
+      try {
+        console.log("🔍 Checking Freighter connection...");
+
+        // Check if Freighter is connected
+        const isConn = await freighterIsConnected();
+        console.log("✅ Freighter API available");
+
+        if (isConn) {
+          const addr = await getAddress();
+          setPublicKey(addr);
           setConnected(true);
-        } catch (error) {
-          console.log("Freighter not connected yet");
+          setWallet(true);
+          console.log("✅ Freighter connected, wallet:", addr);
+        } else {
+          console.log("⚠️ Freighter available but not connected yet");
+          setWallet(true);
         }
+      } catch (err) {
+        console.error("❌ Freighter not available:", err.message);
+        setError("Freighter wallet not found. Please install the extension from https://freighter.app");
+      } finally {
+        setLoading(false);
       }
     };
 
-    checkFreighter();
-    window.addEventListener("freighter_ready", checkFreighter);
-    return () => window.removeEventListener("freighter_ready", checkFreighter);
+    initFreighter();
   }, []);
 
   const connect = async () => {
-    if (!window.freighter) {
-      throw new Error("Freighter wallet not installed");
-    }
     try {
-      const publicKey = await window.freighter.getPublicKey();
-      setPublicKey(publicKey);
+      console.log("🔗 Attempting to connect Freighter wallet...");
+
+      await setAllowed();
+      const address = await getAddress();
+
+      setPublicKey(address);
       setConnected(true);
-      return publicKey;
+      setWallet(true);
+      setError(null);
+
+      console.log("✅ Connected to wallet:", address);
+      return address;
     } catch (error) {
       console.error("Failed to connect Freighter:", error);
+      setError(error.message || "Failed to connect wallet");
       throw error;
     }
   };
@@ -53,15 +79,26 @@ export default function FreighterProvider({ children }) {
   const disconnect = () => {
     setPublicKey(null);
     setConnected(false);
+    console.log("🔓 Disconnected from wallet");
   };
 
   const signTransaction = async (transactionXDR) => {
-    if (!window.freighter) {
-      throw new Error("Freighter wallet not installed");
+    if (!wallet) {
+      throw new Error("Freighter wallet not available");
     }
-    return await window.freighter.signTransaction(transactionXDR, {
+
+    return await freighterSignTransaction(transactionXDR, {
       networkPassphrase: "Test SDF Network ; September 2015"
     });
+  };
+
+  const signMessage = async (message) => {
+    if (!wallet) {
+      throw new Error("Freighter wallet not available");
+    }
+
+    // freighterSignMessage expects just the message string
+    return await freighterSignMessage(message);
   };
 
   const value = {
@@ -70,7 +107,12 @@ export default function FreighterProvider({ children }) {
     publicKey,
     connect,
     disconnect,
-    signTransaction
+    signTransaction,
+    signMessage,
+    loading,
+    error,
+    isConnected: freighterIsConnected,
+    getAddress
   };
 
   return (
@@ -79,5 +121,3 @@ export default function FreighterProvider({ children }) {
     </WalletContext.Provider>
   );
 }
-
-

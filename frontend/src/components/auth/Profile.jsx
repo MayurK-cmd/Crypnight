@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import API from "../../api/axios";
 import { useNavigate, Link } from "react-router-dom";
 import { useWallet } from "../../wallet/WalletProvider";
-import StellarSdk from "stellar-sdk";
 import { User, Wallet, Shield, Calendar, ArrowLeft, Loader2 } from 'lucide-react';
 
 const Toast = ({ message, type, onClose }) => (
@@ -25,7 +24,6 @@ export default function Profile() {
   const [balanceLoading, setBalanceLoading] = useState(false);
   const navigate = useNavigate();
   const { publicKey } = useWallet();
-  const server = new StellarSdk.Server("https://horizon-testnet.stellar.org");
 
   const showToast = (msg, type = 'success') => {
     setToast({ show: true, msg, type });
@@ -50,15 +48,19 @@ export default function Profile() {
   useEffect(() => {
     if (publicKey) {
       setBalanceLoading(true);
-      server.accounts()
-        .accountId(publicKey)
-        .call()
-        .then(account => {
+      (async () => {
+        try {
+          const { Horizon } = await import("stellar-sdk");
+          const server = new Horizon.Server("https://horizon-testnet.stellar.org");
+          const account = await server.accounts().accountId(publicKey).call();
           const nativeBalance = account.balances.find(b => b.asset_type === 'native');
           setXlmBalance(nativeBalance ? parseFloat(nativeBalance.balance) : 0);
-        })
-        .catch(err => console.error('Failed to fetch balance:', err))
-        .finally(() => setBalanceLoading(false));
+        } catch (err) {
+          console.error('Failed to fetch balance:', err);
+        } finally {
+          setBalanceLoading(false);
+        }
+      })();
     }
   }, [publicKey]);
 

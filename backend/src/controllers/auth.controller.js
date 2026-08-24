@@ -27,6 +27,12 @@ export const signup = async (req, res) => {
   const { data, error } = await supabase.auth.signUp({ email, password });
 
   if (error) {
+    console.error('Supabase signup error:', {
+      message: error.message,
+      status: error.status,
+      code: error.code,
+      fullError: JSON.stringify(error, null, 2)
+    });
     await logAction({
       action: AuditAction.LOGIN_FAILED, // closest existing event for signup errors
       metadata: { email, reason: 'signup_failed', message: error.message },
