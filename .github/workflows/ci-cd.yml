@@ -19,7 +19,13 @@ jobs:
           node-version: '22.x'
 
       - name: Install frontend dependencies
-        run: cd frontend && npm ci
+        # Use `npm install` (not `npm ci`) so optional native deps like
+        # @rollup/rollup-linux-x64-gnu are fetched. npm ci + optional deps
+        # is broken on some runners (npm/cli#4828) and causes
+        # "Cannot find module @rollup/rollup-linux-x64-gnu" during build.
+        run: |
+          cd frontend
+          npm install --include=optional --no-audit --no-fund
 
       # 1. Verify required env keys documented in .env.example
       - name: Verify .env.example has required VITE_ keys
