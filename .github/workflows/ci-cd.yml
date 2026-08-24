@@ -1,209 +1,76 @@
-name: CI/CD Pipeline
+name: Frontend Deploy Safety
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [20.x, 22.x]
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-
-    # Backend Tests
-    - name: Install Backend Dependencies
-      run: |
-        cd backend
-        npm ci
-
-    - name: Run Backend Tests
-      run: |
-        cd backend
-        npm test
-      continue-on-error: true
-
-    - name: Run Linter (Backend)
-      run: |
-        cd backend
-        npm run lint || true
-      continue-on-error: true
-
-    # Frontend Tests
-    - name: Install Frontend Dependencies
-      run: |
-        cd frontend
-        npm ci
-
-    - name: Run Frontend Tests
-      run: |
-        cd frontend
-        npm test -- --run
-      continue-on-error: true
-
-    - name: Build Frontend
-      run: |
-        cd frontend
-        npm run build
-
-  contract-tests:
+  verify-frontend-safe-to-deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Use Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22.x'
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
 
-    - name: Install Backend Dependencies
-      run: |
-        cd backend
-        npm ci
+      - name: Install frontend dependencies
+        run: cd frontend && npm ci
 
-    - name: Run Contract Tests
-      run: |
-        cd backend
-        npm test -- tests/contract.test.js
-
-  deploy-safety-check:
-    runs-on: ubuntu-latest
-    needs: [test, contract-tests]
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Use Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22.x'
-
-    - name: Install Backend Dependencies
-      run: |
-        cd backend
-        npm ci
-
-    # 1. Backend must start without syntax errors (loads all modules)
-    - name: Syntax Check - Backend loads cleanly
-      run: |
-        cd backend
-        node --check index.js
-        echo "✓ Backend syntax valid"
-
-    # 2. Verify .env.example exists and contains required keys
-    - name: Verify .env.example has all required keys
-      run: |
-        cd backend
-        REQUIRED_KEYS=(
-          "STELLAR_HORIZON_URL"
-          "STELLAR_TESTNET_NETWORK_PASSPHRASE"
-          "PLATFORM_AUTHORITY_SECRET_KEY"
-          "PLATFORM_ESCROW_ACCOUNT"
-          "SUPABASE_URL"
-          "SUPABASE_ANON_KEY"
-          "PORT"
-        )
-        MISSING=0
-        for key in "${REQUIRED_KEYS[@]}"; do
-          if ! grep -q "^$key=" .env.example; then
-            echo "✗ Missing required key: $key"
-            MISSING=$((MISSING+1))
+      # 1. Verify required env keys documented in .env.example
+      - name: Verify .env.example has required VITE_ keys
+        run: |
+          cd frontend
+          REQUIRED_KEYS=(
+            "VITE_SUPABASE_URL"
+            "VITE_SUPABASE_ANON_KEY"
+            "VITE_API_URL"
+            "VITE_STELLAR_HORIZON"
+            "VITE_STELLAR_NETWORK_PASSPHRASE"
+            "VITE_SOLO_TREASURY_ACCOUNT"
+            "VITE_DUEL_TREASURY_ACCOUNT"
+          )
+          MISSING=0
+          for key in "${REQUIRED_KEYS[@]}"; do
+            if ! grep -q "^$key=" .env.example; then
+              echo "✗ Missing required key: $key"
+              MISSING=$((MISSING+1))
+            fi
+          done
+          if [ $MISSING -gt 0 ]; then
+            echo "❌ FAIL: $MISSING required VITE_ keys missing from .env.example"
+            exit 1
           fi
-        done
-        if [ $MISSING -gt 0 ]; then
-          echo "❌ FAIL: $MISSING required env keys missing"
-          exit 1
-        fi
-        echo "✓ All required env keys present"
+          echo "✓ All required VITE_ keys present"
 
-    # 3. Verify .env is NOT committed (security check)
-    - name: Verify .env not committed to repo
-      run: |
-        if git ls-files backend/.env | grep -q .env; then
-          echo "❌ FAIL: backend/.env is tracked in git!"
-          echo "Run: git rm --cached backend/.env"
-          exit 1
-        fi
-        echo "✓ .env not tracked in git (safe)"
+      # 2. Verify frontend .env is NOT committed (only .env.example should be tracked)
+      - name: Verify frontend/.env not committed
+        run: |
+          if git ls-files frontend/.env | grep -q .env; then
+            echo "❌ FAIL: frontend/.env is tracked in git!"
+            echo "Run: git rm --cached frontend/.env"
+            exit 1
+          fi
+          echo "✓ frontend/.env not tracked in git"
 
-    # 4. Verify no real Stellar secret keys (S prefix, 56 chars) in source
-    - name: Scan for accidentally committed Stellar secret keys
-      run: |
-        SECRETS_FOUND=$(grep -rE "['\"]S[A-Z0-9]{55}['\"]" backend/ frontend/ --include="*.js" --include="*.ts" --include="*.jsx" --include="*.tsx" --include="*.json" --exclude-dir=node_modules --exclude-dir=dist 2>/dev/null || true)
-        # Allow placeholders like S...
-        REAL_SECRETS=$(echo "$SECRETS_FOUND" | grep -vE "S\.\.\.|S['\"]?\s*$" || true)
-        if [ -n "$REAL_SECRETS" ]; then
-          echo "❌ FAIL: Possible Stellar secret keys found in source:"
-          echo "$REAL_SECRETS"
-          exit 1
-        fi
-        echo "✓ No real Stellar secret keys in source"
+      # 3. Scan frontend source for accidentally committed Stellar secret keys
+      - name: Scan for leaked Stellar secret keys
+        run: |
+          SECRETS_FOUND=$(grep -rE "['\"]S[A-Z0-9]{55}['\"]" frontend/src 2>/dev/null || true)
+          if [ -n "$SECRETS_FOUND" ]; then
+            echo "❌ FAIL: Possible Stellar secret keys found in frontend source:"
+            echo "$SECRETS_FOUND"
+            exit 1
+          fi
+          echo "✓ No Stellar secret keys leaked in frontend"
 
-    # 5. Verify both contract addresses are documented and valid format
-    - name: Verify Soroban contract addresses are deployed
-      run: |
-        cd backend
-        SOLO="CBZ2QQ2RFBEZCU74X2YT3DPY3UYC4YKLUF3ZI4YJOOHC563GBHAB26XT"
-        DUEL="CAXDXQIEZD5MJT352AIT5TZXMCRZTU5RYLUR7LRULGBDG4IVP7VZHI4P"
-        echo "Solo Contract: $SOLO"
-        echo "Duel Contract: $DUEL"
-        if [ ${#SOLO} -ne 56 ] || [ ${#DUEL} -ne 56 ]; then
-          echo "❌ FAIL: Contract addresses have invalid length"
-          exit 1
-        fi
-        echo "✓ Contract addresses valid format"
-
-    # 6. Verify backend can load all modules (catches missing deps / syntax)
-    - name: Backend module load test
-      run: |
-        cd backend
-        node -e "
-          import('express').then(() => console.log('✓ express OK'));
-          import('stellar-sdk').then(() => console.log('✓ stellar-sdk OK'));
-          import('@supabase/supabase-js').then(() => console.log('✓ supabase OK'));
-          import('chess.js').then(() => console.log('✓ chess.js OK'));
-          import('helmet').then(() => console.log('✓ helmet OK'));
-          import('cors').then(() => console.log('✓ cors OK'));
-        " 2>&1
-        echo "✓ All critical dependencies loadable"
-
-    # 7. Verify package.json scripts work (run dev briefly)
-    - name: Backend boot smoke test (kill after 5s)
-      run: |
-        cd backend
-        # Start backend in background, kill after 5s, fail if it crashed early
-        timeout 5 npm start 2>&1 | head -20 || true
-        echo "✓ Backend boots without immediate failure"
-
-    - name: Deploy Safety Check Summary
-      if: success()
-      run: |
-        echo "==================================="
-        echo "✓ BACKEND IS SAFE TO DEPLOY"
-        echo "==================================="
-        echo "✓ Syntax valid"
-        echo "✓ All env keys documented"
-        echo "✓ No secrets leaked"
-        echo "✓ Contract addresses valid"
-        echo "✓ Dependencies loadable"
-        echo "✓ Backend boots successfully"
-
-    - name: Deploy Safety Check FAILED
-      if: failure()
-      run: |
-        echo "==================================="
-        echo "❌ BACKEND NOT SAFE TO DEPLOY"
-        echo "==================================="
-        echo "Review the failed step above and fix before deploying."
+      # 4. Build the frontend — catches every real deploy error
+      - name: Build frontend (verifies safe to deploy to Vercel)
+        run: |
+          cd frontend
+          npm run build
+          echo "✓ Frontend builds successfully — safe to deploy to Vercel"

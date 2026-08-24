@@ -15,7 +15,7 @@ A full-stack chess puzzle game built on Stellar blockchain with wallet-based aut
 - 📊 **Leaderboard** - Competitive ranking system based on puzzle ratings
 - 🔐 **Non-Custodial** - Your keys, your crypto - we never hold your funds
 - ✅ **12 Passing Tests** - Comprehensive contract and transaction testing
-- 🔄 **CI/CD Pipeline** - Automated testing with GitHub Actions
+- 🚀 **Frontend Deploy Safety** - Automated Vercel deploy verification via GitHub Actions
 
 ## 🚀 Live Deployment
 
@@ -212,12 +212,12 @@ npm test -- tests/contract.test.js
 
 ### CI/CD Pipeline
 
-GitHub Actions workflow automatically runs tests on every push and PR:
+GitHub Actions automatically verifies the frontend is safe to deploy to Vercel on every push/PR:
 - Location: `.github/workflows/ci-cd.yml`
-- Runs: Node 20.x and 22.x
-- Tests backend, frontend, and contracts
-- Build verification included
-- Status: ![CI/CD Pipeline](https://github.com/MayurK-cmd/Crypnight/actions/workflows/ci-cd.yml/badge.svg)
+- Single job: `verify-frontend-safe-to-deploy`
+- Runs on Node 22.x
+- Checks: required env keys, no committed `.env`, no leaked Stellar secret keys, production build
+- Status: ![Frontend Deploy Safety](https://github.com/MayurK-cmd/Crypnight/actions/workflows/ci-cd.yml/badge.svg)
 
 ## 🏗 Architecture
 
