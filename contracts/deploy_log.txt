@@ -1,0 +1,8 @@
+﻿Deploying program: crypnight_contracts
+anchor.exe : Error: Data writes to account failed: Custom error: Max retries exceeded
+At line:1 char:355
++ ... contracts"; & "C:\Users\mayur\.cargo\bin\anchor.exe" program deploy - ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Error: Data wri...etries exceeded:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
