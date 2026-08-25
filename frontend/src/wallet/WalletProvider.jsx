@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { createContext, useContext, useState, useEffect } from "react";
 import {
   isConnected as freighterIsConnected,
@@ -18,8 +17,21 @@ export function useWallet() {
   return context;
 }
 
+// @stellar/freighter-api v6 returns objects, not raw values:
+//   isConnected() -> { isConnected: boolean }
+//   getAddress()   -> { address: string }
+// Unwrap defensively so consumers always get a plain string / boolean.
+const unwrapIsConnected = (res) => {
+  if (res && typeof res === "object") return Boolean(res.isConnected);
+  return Boolean(res);
+};
+
+const unwrapAddress = (res) => {
+  if (res && typeof res === "object") return res.address ?? null;
+  return typeof res === "string" ? res : null;
+};
+
 export default function FreighterProvider({ children }) {
-  const [wallet, setWallet] = useState(null);
   const [connected, setConnected] = useState(false);
   const [publicKey, setPublicKey] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -30,19 +42,16 @@ export default function FreighterProvider({ children }) {
       try {
         console.log("🔍 Checking Freighter connection...");
 
-        // Check if Freighter is connected
-        const isConn = await freighterIsConnected();
+        const isConn = unwrapIsConnected(await freighterIsConnected());
         console.log("✅ Freighter API available");
 
         if (isConn) {
-          const addr = await getAddress();
+          const addr = unwrapAddress(await getAddress());
           setPublicKey(addr);
-          setConnected(true);
-          setWallet(true);
+          setConnected(Boolean(addr));
           console.log("✅ Freighter connected, wallet:", addr);
         } else {
           console.log("⚠️ Freighter available but not connected yet");
-          setWallet(true);
         }
       } catch (err) {
         console.error("❌ Freighter not available:", err.message);
@@ -60,11 +69,10 @@ export default function FreighterProvider({ children }) {
       console.log("🔗 Attempting to connect Freighter wallet...");
 
       await setAllowed();
-      const address = await getAddress();
+      const address = unwrapAddress(await getAddress());
 
       setPublicKey(address);
-      setConnected(true);
-      setWallet(true);
+      setConnected(Boolean(address));
       setError(null);
 
       console.log("✅ Connected to wallet:", address);
@@ -83,26 +91,16 @@ export default function FreighterProvider({ children }) {
   };
 
   const signTransaction = async (transactionXDR) => {
-    if (!wallet) {
-      throw new Error("Freighter wallet not available");
-    }
-
     return await freighterSignTransaction(transactionXDR, {
-      networkPassphrase: "Test SDF Network ; September 2015"
+      networkPassphrase: "Test SDF Network ; September 2015",
     });
   };
 
   const signMessage = async (message) => {
-    if (!wallet) {
-      throw new Error("Freighter wallet not available");
-    }
-
-    // freighterSignMessage expects just the message string
     return await freighterSignMessage(message);
   };
 
   const value = {
-    wallet,
     connected,
     publicKey,
     connect,
@@ -111,8 +109,6 @@ export default function FreighterProvider({ children }) {
     signMessage,
     loading,
     error,
-    isConnected: freighterIsConnected,
-    getAddress
   };
 
   return (

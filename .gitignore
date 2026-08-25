@@ -3,3 +3,4 @@ source/
 .claude
 skills-lock.json
 docs-local
+.mcp.json

@@ -48,13 +48,13 @@ export const loginSchema = Joi.object({
   password: Joi.string().max(128).required(),
 });
 
-// PHASE 1 §3.2 — Wallet schema (Solana base58, 32–44 chars)
+// PHASE 1 §3.2 — Wallet schema (Stellar G-account, 56 chars, base32 with checksum)
 export const walletLinkSchema = Joi.object({
   walletAddress: Joi.string()
-    .pattern(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/)
+    .pattern(/^G[A-Z2-7]{55}$/)
     .required()
-    .messages({ 'string.pattern.base': 'Invalid Solana wallet address' }),
-  signature: Joi.string().max(512).required(),
+    .messages({ 'string.pattern.base': 'Invalid Stellar wallet address' }),
+  signature: Joi.string().max(4096).required(),
   message: Joi.string().max(256).required(),
 });
 

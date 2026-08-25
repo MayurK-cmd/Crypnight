@@ -1,6 +1,6 @@
 import LandingPage from './components/LandingPage'
-import WalletLogin from './components/auth/WalletLogin'
-import WalletSignup from './components/auth/WalletSignup'
+import LoginPage from './components/auth/Login'
+import SignupPage from './components/auth/Signup'
 import Dashboard from './components/auth/Dashboard'
 import Setup from './components/auth/Setup'
 import Profile from './components/auth/Profile'
@@ -26,8 +26,8 @@ function App() {
       <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<WalletLogin />} />
-        <Route path="/signup" element={<WalletSignup />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/setup" element={<Setup />} />
         <Route path="/profile" element={<Profile />} />
@@ -46,4 +46,3 @@ function App() {
 }
 
 export default App
-

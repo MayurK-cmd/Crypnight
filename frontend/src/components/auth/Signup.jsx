@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import API from '../../api/axios';
 import { useNavigate, Link } from 'react-router-dom';
-import { Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 
 const Toast = ({ message, type, onClose }) => (
   <div className="fixed bottom-10 right-10 z-[100] animate-in fade-in slide-in-from-bottom-5 duration-300 text-left">

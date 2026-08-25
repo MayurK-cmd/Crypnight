@@ -16,29 +16,6 @@ export const verifyUser = async (req, res, next) => {
     return res.status(401).json({ message: 'Unauthorized, token missing' });
   }
 
-  // For wallet-based auth tokens (format: userId.timestamp)
-  // Extract the user ID from the token
-  const parts = token.split('.');
-  if (parts.length === 2) {
-    const userId = parts[0];
-
-    // Verify the user exists
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (error || !user) {
-      return res.status(401).json({ message: 'Unauthorized, invalid token' });
-    }
-
-    req.user = { id: userId };
-    req.authToken = token;
-    return next();
-  }
-
-  // Fallback to Supabase JWT validation for traditional tokens
   const { data, error } = await supabase.auth.getUser(token);
 
   if (error || !data?.user) {
@@ -50,18 +27,14 @@ export const verifyUser = async (req, res, next) => {
   next();
 };
 
-// PHASE 1 §6 — Enforce that the user has confirmed their email.
-// Run AFTER verifyUser (so req.user is populated).
+// PHASE 1 §6 — Email confirmation is intentionally not enforced. Supabase sends
+// a confirmation email on signup by default, but for this project we want users
+// to land in /setup right after they create an account without an inbox round
+// trip. The Supabase session token is still required (verifyUser runs first),
+// so this is purely a UX shortcut, not an auth weakening.
 export const requireVerified = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
-
-  if (!req.user.email_confirmed_at) {
-    return res.status(403).json({
-      error: 'Please verify your email before continuing.',
-    });
-  }
-
   next();
 };

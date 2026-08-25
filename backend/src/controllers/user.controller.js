@@ -16,6 +16,17 @@ export const linkWallet = async (req, res) => {
 
     const isValid = verifySignature(message, signature, walletAddress);
 
+    // TEMP DIAGNOSTIC — strip after fix confirmed
+    console.log('[link-wallet diag]', {
+      pk: walletAddress,
+      msg: message,
+      msgBytesHex: Buffer.from(message, 'utf8').toString('hex'),
+      msgLen: message.length,
+      sigPreview: typeof signature === 'string' ? signature.slice(0, 40) + (signature.length > 40 ? '...' : '') : signature,
+      sigLen: typeof signature === 'string' ? signature.length : null,
+      isValid,
+    });
+
     if (!isValid) {
       await logAction({
         userId,

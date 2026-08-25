@@ -16,10 +16,11 @@ const Toast = ({ message, type, onClose }) => (
 );
 
 export default function Setup() {
-  const { publicKey, connected, connect, signTransaction } = useWallet();
+  const { publicKey, connected, connect, signMessage } = useWallet();
   const [tier, setTier] = useState("");
   const [toast, setToast] = useState({ show: false, msg: '', type: 'success' });
   const [connecting, setConnecting] = useState(false);
+  const [linking, setLinking] = useState(false);
   const navigate = useNavigate();
 
   const showToast = (msg, type = 'success') => {
@@ -42,17 +43,30 @@ export default function Setup() {
 
   const linkWallet = async () => {
     if (!publicKey) return showToast("Connect wallet first", "error");
+    setLinking(true);
     try {
       const message = "Link wallet to CrypNight - Stellar";
+      const res = await signMessage(message);
+      // freighter-api v6 returns { signedMessage: "<base64>" }; older
+      // versions returned the buffer directly. Accept both shapes.
+      const signature =
+        (res && typeof res === "object" ? res.signedMessage : res) || "";
+
+      if (!signature) {
+        throw new Error("Freighter did not return a signature");
+      }
 
       await API.post("/user/link-wallet", {
         walletAddress: publicKey,
         message,
+        signature,
       });
 
       showToast("Wallet linked & verified!");
     } catch (err) {
       showToast("Failed to link wallet", "error");
+    } finally {
+      setLinking(false);
     }
   };
 
@@ -66,6 +80,8 @@ export default function Setup() {
       showToast("Failed to set tier", "error");
     }
   };
+
+  const pk = typeof publicKey === 'string' ? publicKey : null;
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans flex items-center justify-center px-6 relative overflow-hidden text-left">
@@ -92,26 +108,27 @@ export default function Setup() {
               {connecting ? "Connecting..." : connected ? "✓ Connected" : "Connect Freighter"}
             </button>
 
-            {connected && publicKey && (
+            {connected && pk && (
               <>
-                <p className="text-xs text-slate-500 mb-4 break-all">{publicKey.substring(0, 8)}...{publicKey.substring(publicKey.length - 8)}</p>
+                <p className="text-xs text-slate-500 mb-4 break-all">{pk.substring(0, 8)}...{pk.substring(pk.length - 8)}</p>
                 <button
                   onClick={linkWallet}
-                  className="text-xs font-black uppercase tracking-tighter text-emerald-600 hover:text-emerald-700 underline underline-offset-4 transition-all cursor-pointer"
+                  disabled={linking}
+                  className="text-xs font-black uppercase tracking-tighter text-emerald-600 hover:text-emerald-700 underline underline-offset-4 transition-all cursor-pointer disabled:opacity-50"
                 >
-                  Verify Wallet
+                  {linking ? "Verifying..." : "Verify Wallet"}
                 </button>
               </>
             )}
           </div>
 
-          <div className={`p-8 rounded-[2.5rem] flex flex-col items-center text-center transition-all duration-500 ${publicKey ? 'bg-slate-50 border border-slate-100 opacity-100 shadow-sm' : 'bg-slate-50/50 border border-dashed border-slate-200 opacity-50'}`}>
+          <div className={`p-8 rounded-[2.5rem] flex flex-col items-center text-center transition-all duration-500 ${pk ? 'bg-slate-50 border border-slate-100 opacity-100 shadow-sm' : 'bg-slate-50/50 border border-dashed border-slate-200 opacity-50'}`}>
             <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center font-black mb-6">02</div>
             <h3 className="text-xl font-bold mb-2">Skill Level</h3>
             <p className="text-sm text-slate-500 mb-8 leading-relaxed font-medium">Your initial ELO tier (cannot be changed later).</p>
 
             <select
-              disabled={!publicKey}
+              disabled={!pk}
               value={tier}
               onChange={(e) => setTier(e.target.value)}
               className="w-full bg-white border border-slate-200 rounded-xl px-4 py-4 text-slate-900 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 mb-6 appearance-none cursor-pointer font-bold disabled:opacity-50 disabled:cursor-not-allowed"
@@ -124,7 +141,7 @@ export default function Setup() {
             </select>
 
             <button
-              disabled={!publicKey || !tier}
+              disabled={!pk || !tier}
               onClick={setUserTier}
               className="w-full py-4 bg-emerald-400 text-black rounded-2xl font-bold text-lg hover:bg-emerald-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-xl shadow-emerald-500/20 cursor-pointer"
             >
