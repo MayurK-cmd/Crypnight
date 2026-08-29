@@ -7,6 +7,7 @@ import * as StellarSdk from "stellar-sdk";
 import API from "../../api/axios";
 import { AuthContext } from "../../context/AuthContext";
 import { useDuelSocket } from "../../hooks/useDuelSocket";
+import { createDuelEscrow } from "../../contracts/soroban.js";
 import {
   Timer,
   Trophy,
@@ -49,6 +50,7 @@ export default function Duel() {
   const [selectedTier, setSelectedTier] = useState("beginner");
   const [matchId, setMatchId] = useState(null);
   const [opponent, setOpponent] = useState(null);
+  const [opponentWallet, setOpponentWallet] = useState(null);
   const [playerRole, setPlayerRole] = useState(null); // 'player_a' or 'player_b'
   const [opponentDeposited, setOpponentDeposited] = useState(false);
   const [playerDeposited, setPlayerDeposited] = useState(false);
@@ -76,6 +78,8 @@ export default function Duel() {
   const [sessionComplete, setSessionComplete] = useState(false);
   const [result, setResult] = useState(null);
   const [txSignature, setTxSignature] = useState(null);
+  const [contractTxHash, setContractTxHash] = useState(null);
+  const [contractError, setContractError] = useState(null);
 
   const currentTurn =
     position && position.split(" ")[1] === "w" ? "White" : "Black";
@@ -93,9 +97,10 @@ export default function Duel() {
   useEffect(() => {
     if (!socket) return;
 
-    const handleMatchFound = ({ matchId: mid, tier, stakeXLM, opponent: opp, yourWallet, role }) => {
+    const handleMatchFound = ({ matchId: mid, tier, stakeXLM, opponent: opp, opponentWallet: oppWallet, yourWallet, role }) => {
       setMatchId(mid);
       setOpponent(opp);
+      setOpponentWallet(oppWallet || null);
       setPlayerRole(role);
       setState("match_found");
     };
@@ -131,6 +136,7 @@ export default function Duel() {
 
     try {
       setState("waiting_both");
+      setContractError(null);
       const duelTreasuryAccount = import.meta.env.VITE_DUEL_TREASURY_ACCOUNT;
 
       const server = new StellarSdk.Server(STELLAR_TESTNET.horizon);
@@ -158,6 +164,29 @@ export default function Duel() {
       const txResponse = await server.submitTransaction(
         new StellarSdk.Transaction(signedTx, STELLAR_TESTNET.networkPassphrase)
       );
+
+      // Mirror the deposit on-chain by invoking create_duel_escrow on the
+      // Soroban duel contract from the browser. This contract function has
+      // no require_auth() so the player (signer) is permitted to call it.
+      // We pass the opponent's wallet if we know it; otherwise the contract
+      // call is skipped here (the backend already mirrored the escrow
+      // server-side at match-find time, so on-chain state is still created).
+      if (opponentWallet) {
+        try {
+          const { hash } = await createDuelEscrow({
+            matchId,
+            playerA: publicKey,
+            playerB: opponentWallet,
+            tier: selectedTier,
+            signerPublicKey: publicKey,
+          });
+          setContractTxHash(hash);
+        } catch (cErr) {
+          console.warn('[Duel] create_duel_escrow client-side call failed:', cErr.message);
+          setContractError(cErr.message);
+          // Continue — backend already mirrored this on-chain.
+        }
+      }
 
       setPlayerDeposited(true);
       confirmDeposit(matchId, txResponse.id);
@@ -824,6 +853,45 @@ export default function Duel() {
               <p className="text-slate-300 text-sm mb-8">
                 {result.playerASolved} vs {result.playerBSolved} puzzles Solved
               </p>
+
+              {(txSignature || contractTxHash) && (
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-6 space-y-2">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-300 mb-2">
+                    On-Chain Receipts
+                  </div>
+                  {txSignature && (
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 font-bold">Classic Payment</span>
+                      <a
+                        href={`https://stellar.expert/explorer/testnet/tx/${txSignature}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-emerald-400 hover:underline truncate ml-2 max-w-[60%]"
+                      >
+                        {txSignature.slice(0, 8)}…{txSignature.slice(-8)}
+                      </a>
+                    </div>
+                  )}
+                  {contractTxHash && (
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 font-bold">Soroban (create_duel_escrow)</span>
+                      <a
+                        href={`https://stellar.expert/explorer/testnet/tx/${contractTxHash}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-emerald-400 hover:underline truncate ml-2 max-w-[60%]"
+                      >
+                        {contractTxHash.slice(0, 8)}…{contractTxHash.slice(-8)}
+                      </a>
+                    </div>
+                  )}
+                  {contractError && (
+                    <div className="text-[10px] text-yellow-300 mt-1">
+                      Escrow tx error (backend already mirrored on-chain): {contractError}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 mt-6">
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-6">

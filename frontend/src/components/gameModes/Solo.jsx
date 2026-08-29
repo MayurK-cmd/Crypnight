@@ -46,6 +46,8 @@ export default function Solo() {
   const [sessionEndReason, setSessionEndReason] = useState(null);
   const [summary, setSummary] = useState(null);
   const [txSignature, setTxSignature] = useState(null);
+  const [contractTxHash, setContractTxHash] = useState(null);
+  const [contractStatus, setContractStatus] = useState(null);
 
   const currentTurn =
     position && position.split(" ")[1] === "w" ? "White" : "Black";
@@ -307,6 +309,8 @@ export default function Solo() {
       total_session_reward: data.total_session_reward,
     });
     setTxSignature(data.txSignature || null);
+    setContractTxHash(data.contractTxHash || null);
+    setContractStatus(data.contractStatus || null);
   };
 
   const startNewRun = async () => {
@@ -410,10 +414,27 @@ export default function Solo() {
                   href={`https://stellar.expert/explorer/testnet/tx/${txSignature}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-xs text-emerald-400 hover:text-emerald-300 cursor-pointer mb-6 underline underline-offset-2 transition-colors"
+                  className="flex items-center gap-2 text-xs text-emerald-400 hover:text-emerald-300 cursor-pointer mb-2 underline underline-offset-2 transition-colors"
                 >
-                  View payout on Stellar Expert ↗
+                  View classic payout on Stellar Expert ↗
                 </a>
+              )}
+
+              {contractTxHash && (
+                <a
+                  href={`https://stellar.expert/explorer/testnet/tx/${contractTxHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-xs text-emerald-400 hover:text-emerald-300 cursor-pointer mb-2 underline underline-offset-2 transition-colors"
+                >
+                  View Soroban pay_reward on Stellar Expert ↗
+                </a>
+              )}
+
+              {contractStatus && contractStatus === 'FAILED' && (
+                <p className="text-[10px] text-yellow-400 mb-2">
+                  Soroban ledger sync failed — player was still paid via classic payment.
+                </p>
               )}
 
               {!txSignature && summary.total_session_reward > 0 && (

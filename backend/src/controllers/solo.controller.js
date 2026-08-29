@@ -121,6 +121,8 @@ export const endSoloSession = async ({ userId, sessionId, reason, ipAddress = nu
 
   let txSignature = null;
   let onChainPayout = null;
+  let contractTxHash = null;
+  let contractStatus = null;
 
   if (totalReward > 0) {
     // Await payout so txSignature is available in response
@@ -135,6 +137,8 @@ export const endSoloSession = async ({ userId, sessionId, reason, ipAddress = nu
         const result = await payReward(user.wallet_address, totalReward);
         txSignature = result.signature;
         onChainPayout = result.playerPayout;
+        contractTxHash = result.contractTxHash ?? null;
+        contractStatus = result.contractStatus ?? null;
 
         await logAction({
           userId,
@@ -174,6 +178,8 @@ export const endSoloSession = async ({ userId, sessionId, reason, ipAddress = nu
     total_session_reward: totalReward,
     txSignature,
     onChainPayout,
+    contractTxHash,
+    contractStatus,
   };
 };
 

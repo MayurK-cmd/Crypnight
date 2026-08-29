@@ -8,161 +8,185 @@ import {
   Memo,
   StrKey,
 } from '../config/solana.js';
+import {
+  invokeSettleDuel,
+  invokeRefundDuel,
+} from './sorobanService.js';
 
 const DUEL_CONTRACT_ID = process.env.STELLAR_DUEL_CONTRACT_ID;
 const DUEL_TREASURY = process.env.STELLAR_DUEL_TREASURY_PUBLIC_KEY;
 
-const settleDuel = async (playerWalletAddress, winningsXlm) => {
-  console.log(`\n🏆 DUEL SETTLEMENT START - Winner: ${playerWalletAddress}, Winnings: ${winningsXlm} XLM\n`);
+const DUEL_PLATFORM_FEE_BPS = 2000; // 20% — matches contract's PLATFORM_FEE_BPS
+const BPS_DENOMINATOR = 10_000;
 
-  if (!playerWalletAddress) {
-    console.error('❌ No wallet address provided');
-    throw new Error('Player has no linked wallet address');
+// The duel contract's settle_duel() takes a winner address and computes the
+// fee + payout internally using its own stake/pot state. We mirror that math
+// here on the classic-payment side using session.stake_sol (column name
+// retained from the original schema; values are in XLM).
+const computeWinnerPayoutXlm = (session) => {
+  const stakeXlm = parseFloat(session.stake_sol);
+  if (!Number.isFinite(stakeXlm) || stakeXlm <= 0) {
+    throw new Error(`Invalid stake_sol on duel session ${session.id}: ${session.stake_sol}`);
   }
-  if (winningsXlm <= 0) {
-    console.error('❌ Invalid winnings amount:', winningsXlm);
-    throw new Error('Winnings must be greater than zero');
-  }
-
-  try {
-    const authorityKeypair = getAuthorityKeypair();
-    console.log(`✅ Authority keypair loaded: ${authorityKeypair.publicKey()}`);
-
-    if (!StellarSdk.StrKey.isValidEd25519PublicKey(playerWalletAddress)) {
-      throw new Error('Invalid Stellar wallet address');
-    }
-    console.log(`✅ Winner wallet validated: ${playerWalletAddress}`);
-
-    const sourceAccount = await server.loadAccount(authorityKeypair.publicKey());
-    console.log(`✅ Authority account loaded, sequence: ${sourceAccount.sequence}`);
-
-    const winnerPayout = (parseFloat(winningsXlm) * 0.80).toFixed(7); // 20% fee deducted
-    const feeXlm = (parseFloat(winningsXlm) * 0.20).toFixed(7);
-
-    console.log(`✅ Duel settlement calculated:`);
-    console.log(`   Total pot: ${winningsXlm} XLM`);
-    console.log(`   Fee (20%): ${feeXlm} XLM`);
-    console.log(`   Winner receives: ${winnerPayout} XLM`);
-
-    const baseFee = await server.fetchBaseFee();
-    const transaction = new TransactionBuilder(sourceAccount, {
-      fee: Math.ceil(baseFee * 100),
-      networkPassphrase: STELLAR_TESTNET.networkPassphrase,
-    })
-      .addOperation(
-        Operation.payment({
-          destination: playerWalletAddress,
-          asset: Asset.native(),
-          amount: winnerPayout,
-        })
-      )
-      .addMemo(Memo.text('CrypNight Duel Win'))
-      .setTimeout(300)
-      .build();
-
-    console.log(`✅ Transaction built`);
-
-    transaction.sign(authorityKeypair);
-    console.log(`✅ Transaction signed`);
-
-    console.log(`🚀 Submitting settlement to Stellar Testnet...`);
-    const result = await server.submitTransaction(transaction);
-
-    console.log(`✅ SETTLEMENT SUCCESS`);
-    console.log(`   Tx Hash: ${result.hash}`);
-    console.log(`   Ledger: ${result.ledger}`);
-    console.log(`   Explorer: https://stellar.expert/explorer/testnet/tx/${result.hash}\n`);
-
-    return {
-      signature: result.hash,
-      winnerPayout: parseFloat(winnerPayout),
-      fee: parseFloat(feeXlm),
-    };
-  } catch (err) {
-    console.error(`\n❌ SETTLEMENT FAILED`);
-    console.error(`   Error: ${err.message}`);
-    if (err.response) {
-      console.error(`   Response:`, err.response.data || err.response);
-    }
-    console.error(`   Stack: ${err.stack}\n`);
-    throw err;
-  }
+  const potXlm = stakeXlm * 2;
+  const feeXlm = (potXlm * DUEL_PLATFORM_FEE_BPS) / BPS_DENOMINATOR;
+  return {
+    potXlm,
+    feeXlm,
+    winnerPayoutXlm: potXlm - feeXlm,
+  };
 };
 
-const refundDuel = async (player1WalletAddress, player2WalletAddress, refundAmountXlm) => {
-  console.log(`\n♻️ DUEL REFUND START - Players: ${player1WalletAddress.substring(0, 8)}... & ${player2WalletAddress.substring(0, 8)}..., Refund: ${refundAmountXlm} XLM each\n`);
-
-  if (!player1WalletAddress || !player2WalletAddress) {
-    throw new Error('Both player wallet addresses required for refund');
+// Orchestrator — settle a duel: classic payout + Soroban settle_duel().
+// Mirrors the controller's call site:
+//   await settleDuel({ matchId, winnerWallet, session });
+const settleDuel = async ({ matchId, winnerWallet, session }) => {
+  if (!winnerWallet) throw new Error('winnerWallet required');
+  if (!session) throw new Error('session required');
+  if (!StrKey.isValidEd25519PublicKey(winnerWallet)) {
+    throw new Error('Invalid Stellar wallet address');
   }
-  if (refundAmountXlm <= 0) {
-    throw new Error('Refund amount must be greater than zero');
-  }
 
+  const { potXlm, feeXlm, winnerPayoutXlm } = computeWinnerPayoutXlm(session);
+  console.log(
+    `\n🏆 DUEL SETTLEMENT - Winner: ${winnerWallet}, pot=${potXlm} XLM, fee=${feeXlm} XLM, payout=${winnerPayoutXlm} XLM\n`
+  );
+
+  const classic = await sendClassicWinnerPayment(winnerWallet, winnerPayoutXlm);
+
+  let contractResult = null;
   try {
-    const authorityKeypair = getAuthorityKeypair();
-    console.log(`✅ Authority keypair loaded: ${authorityKeypair.publicKey()}`);
-
-    [player1WalletAddress, player2WalletAddress].forEach(addr => {
-      if (!StellarSdk.StrKey.isValidEd25519PublicKey(addr)) {
-        throw new Error('Invalid Stellar wallet address');
-      }
+    contractResult = await invokeSettleDuel({
+      matchId,
+      winnerAddress: winnerWallet,
     });
-    console.log(`✅ Both player wallets validated`);
-
-    const sourceAccount = await server.loadAccount(authorityKeypair.publicKey());
-    console.log(`✅ Authority account loaded, sequence: ${sourceAccount.sequence}`);
-
-    const baseFee = await server.fetchBaseFee();
-    const transaction = new TransactionBuilder(sourceAccount, {
-      fee: Math.ceil(baseFee * 200), // Two operations
-      networkPassphrase: STELLAR_TESTNET.networkPassphrase,
-    })
-      .addOperation(
-        Operation.payment({
-          destination: player1WalletAddress,
-          asset: Asset.native(),
-          amount: refundAmountXlm.toString(),
-        })
-      )
-      .addOperation(
-        Operation.payment({
-          destination: player2WalletAddress,
-          asset: Asset.native(),
-          amount: refundAmountXlm.toString(),
-        })
-      )
-      .addMemo(Memo.text('CrypNight Refund'))
-      .setTimeout(300)
-      .build();
-
-    console.log(`✅ Refund transaction built for both players`);
-
-    transaction.sign(authorityKeypair);
-    console.log(`✅ Transaction signed`);
-
-    console.log(`🚀 Submitting refund to Stellar Testnet...`);
-    const result = await server.submitTransaction(transaction);
-
-    console.log(`✅ REFUND SUCCESS`);
-    console.log(`   Tx Hash: ${result.hash}`);
-    console.log(`   Ledger: ${result.ledger}`);
-    console.log(`   Explorer: https://stellar.expert/explorer/testnet/tx/${result.hash}\n`);
-
-    return {
-      signature: result.hash,
-      player1Refund: parseFloat(refundAmountXlm),
-      player2Refund: parseFloat(refundAmountXlm),
-    };
+    console.log(
+      `[duelPayoutService] Soroban settle_duel confirmed: hash=${contractResult.hash} status=${contractResult.status}`
+    );
   } catch (err) {
-    console.error(`\n❌ REFUND FAILED`);
-    console.error(`   Error: ${err.message}`);
-    if (err.response) {
-      console.error(`   Response:`, err.response.data || err.response);
-    }
-    console.error(`   Stack: ${err.stack}\n`);
-    throw err;
+    console.error(
+      `[duelPayoutService] Soroban settle_duel failed AFTER classic payment (${classic.signature}):`,
+      err.message
+    );
+    // Player has been paid — do not throw. Ledger lag is an ops concern.
   }
+
+  return {
+    signature: classic.signature,
+    winnerPayout: winnerPayoutXlm,
+    fee: feeXlm,
+    contractTxHash: contractResult?.hash ?? null,
+    contractStatus: contractResult?.status ?? 'FAILED',
+  };
+};
+
+// Refund on a draw / cancel: classic refunds + Soroban refund_duel().
+// Controller call site:
+//   await refundDuel({ matchId, playerAWallet, playerBWallet, session });
+const refundDuel = async ({ matchId, playerAWallet, playerBWallet, session }) => {
+  if (!playerAWallet || !playerBWallet) throw new Error('Both player wallets required');
+  if (!session) throw new Error('session required');
+
+  if (!StrKey.isValidEd25519PublicKey(playerAWallet) ||
+      !StrKey.isValidEd25519PublicKey(playerBWallet)) {
+    throw new Error('Invalid Stellar wallet address');
+  }
+
+  const stakeXlm = parseFloat(session.stake_sol);
+  if (!Number.isFinite(stakeXlm) || stakeXlm <= 0) {
+    throw new Error(`Invalid stake_sol on duel session ${session.id}: ${session.stake_sol}`);
+  }
+  const refundAmountXlm = stakeXlm; // each player gets their stake back
+
+  console.log(
+    `\n♻️ DUEL REFUND - Players: ${playerAWallet.substring(0, 8)}... & ${playerBWallet.substring(0, 8)}..., refund=${refundAmountXlm} XLM each\n`
+  );
+
+  const classic = await sendClassicRefundPayments(playerAWallet, playerBWallet, refundAmountXlm);
+
+  let contractResult = null;
+  try {
+    contractResult = await invokeRefundDuel({ matchId });
+    console.log(
+      `[duelPayoutService] Soroban refund_duel confirmed: hash=${contractResult.hash} status=${contractResult.status}`
+    );
+  } catch (err) {
+    console.error(
+      `[duelPayoutService] Soroban refund_duel failed AFTER classic refunds (${classic.signature}):`,
+      err.message
+    );
+  }
+
+  return {
+    signature: classic.signature,
+    player1Refund: refundAmountXlm,
+    player2Refund: refundAmountXlm,
+    contractTxHash: contractResult?.hash ?? null,
+    contractStatus: contractResult?.status ?? 'FAILED',
+  };
+};
+
+// ---- internal: classic-payment helpers (one op for winner, two ops for refund) ----
+
+const sendClassicWinnerPayment = async (winnerWallet, amountXlm) => {
+  const authorityKeypair = getAuthorityKeypair();
+  const sourceAccount = await server.loadAccount(authorityKeypair.publicKey());
+  const baseFee = await server.fetchBaseFee();
+
+  const tx = new TransactionBuilder(sourceAccount, {
+    fee: Math.ceil(baseFee * 100),
+    networkPassphrase: STELLAR_TESTNET.networkPassphrase,
+  })
+    .addOperation(
+      Operation.payment({
+        destination: winnerWallet,
+        asset: Asset.native(),
+        amount: amountXlm.toFixed(7),
+      })
+    )
+    .addMemo(Memo.text('CrypNight Duel Win'))
+    .setTimeout(300)
+    .build();
+
+  tx.sign(authorityKeypair);
+  console.log(`🚀 Submitting duel winner payout to Stellar Testnet...`);
+  const result = await server.submitTransaction(tx);
+  console.log(`✅ DUEL WINNER PAYOUT SUCCESS hash=${result.hash}`);
+  return { signature: result.hash };
+};
+
+const sendClassicRefundPayments = async (p1, p2, amountXlm) => {
+  const authorityKeypair = getAuthorityKeypair();
+  const sourceAccount = await server.loadAccount(authorityKeypair.publicKey());
+  const baseFee = await server.fetchBaseFee();
+
+  const tx = new TransactionBuilder(sourceAccount, {
+    fee: Math.ceil(baseFee * 200), // Two operations
+    networkPassphrase: STELLAR_TESTNET.networkPassphrase,
+  })
+    .addOperation(
+      Operation.payment({
+        destination: p1,
+        asset: Asset.native(),
+        amount: amountXlm.toFixed(7),
+      })
+    )
+    .addOperation(
+      Operation.payment({
+        destination: p2,
+        asset: Asset.native(),
+        amount: amountXlm.toFixed(7),
+      })
+    )
+    .addMemo(Memo.text('CrypNight Refund'))
+    .setTimeout(300)
+    .build();
+
+  tx.sign(authorityKeypair);
+  console.log(`🚀 Submitting duel refund to Stellar Testnet...`);
+  const result = await server.submitTransaction(tx);
+  console.log(`✅ DUEL REFUND SUCCESS hash=${result.hash}`);
+  return { signature: result.hash };
 };
 
 const getTreasuryBalance = async () => {

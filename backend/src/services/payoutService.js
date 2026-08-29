@@ -9,12 +9,16 @@ import {
   Memo,
   StrKey,
 } from '../config/solana.js';
+import { invokeSoloPayReward } from './sorobanService.js';
 
 const SOLO_CONTRACT_ID = process.env.STELLAR_SOLO_CONTRACT_ID;
 const SOLO_TREASURY = process.env.STELLAR_SOLO_TREASURY_PUBLIC_KEY;
 
-const payReward = async (playerWalletAddress, rewardXlm) => {
-  console.log(`\n💰 PAYOUT START - Player: ${playerWalletAddress}, Reward: ${rewardXlm} XLM\n`);
+// Low-level: submit the classic payment that actually moves XLM from the
+// treasury to the player. Returns the on-chain payment hash + fee split.
+// The Soroban contract call is a separate step (see `payReward`).
+const sendClassicPayment = async (playerWalletAddress, rewardXlm) => {
+  console.log(`\n💰 CLASSIC PAYMENT START - Player: ${playerWalletAddress}, Reward: ${rewardXlm} XLM\n`);
 
   if (!playerWalletAddress) {
     console.error('❌ No wallet address provided');
@@ -106,4 +110,35 @@ const getTreasuryBalance = async () => {
   }
 };
 
-export { payReward, getTreasuryBalance };
+// Orchestrator: classic payment + Soroban ledger update.
+// The classic payment actually moves XLM. The Soroban call updates the
+// on-chain reward ledger (TotalPaidOut / TotalFeesRetained) and emits the
+// RewardPaid event. If the contract call fails after the payment succeeded,
+// the payment is NOT rolled back — we log the failure but still return the
+// classic-payment hash so the player gets paid.
+const payReward = async (playerWalletAddress, rewardXlm) => {
+  const classic = await sendClassicPayment(playerWalletAddress, rewardXlm);
+
+  let contractResult = null;
+  try {
+    contractResult = await invokeSoloPayReward(playerWalletAddress, rewardXlm);
+    console.log(
+      `[payoutService] Soroban pay_reward confirmed: hash=${contractResult.hash} status=${contractResult.status}`
+    );
+  } catch (err) {
+    console.error(
+      `[payoutService] Soroban pay_reward failed AFTER classic payment (${classic.signature}):`,
+      err.message
+    );
+    // Do NOT throw — the player has been paid. The ledger lag is a separate
+    // operational concern that the platform operator can reconcile.
+  }
+
+  return {
+    ...classic,
+    contractTxHash: contractResult?.hash ?? null,
+    contractStatus: contractResult?.status ?? 'FAILED',
+  };
+};
+
+export { sendClassicPayment, payReward, getTreasuryBalance };

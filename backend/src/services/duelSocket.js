@@ -3,6 +3,10 @@ import { DuelManager, puzzleState } from './duelManager.js';
 import { supabase } from '../config/supabase.js';
 import { settleDuel, refundDuel } from './duelPayoutService.js';
 import { getPuzzleByRating } from './puzzleLoader.js';
+import {
+  invokeCreateDuelEscrow,
+  invokeJoinDuelEscrow,
+} from './sorobanService.js';
 
 // Store active WebSocket connections by user ID for broadcasting
 const userSockets = new Map();
@@ -72,6 +76,25 @@ async function handleQueueJoin(ws, data) {
 
       ws.sessionId = sessionData.id;
 
+      // Mirror the new match on-chain in the Soroban duel contract.
+      // create_duel_escrow has no require_auth — just records initial state.
+      // Fire-and-await so the contract ledger is up-to-date before either
+      // player deposits; failure is logged but does not block the match
+      // from being announced to the players.
+      try {
+        await invokeCreateDuelEscrow({
+          matchId: sessionData.id,
+          playerA: data.playerAWallet,
+          playerB: data.playerBWallet,
+          tier,
+        });
+      } catch (err) {
+        console.error(
+          `[duelSocket] Soroban create_duel_escrow failed for match ${sessionData.id}:`,
+          err.message
+        );
+      }
+
       // Fetch opponent details
       const otherPlayerId = userId === match.playerAId ? match.playerBId : match.playerAId;
       const { data: opponentData } = await supabase
@@ -89,6 +112,8 @@ async function handleQueueJoin(ws, data) {
         tier,
         stakeSol: sessionData.stake_sol,
         opponent: opponentData || { username: 'Opponent', rating: 1500 },
+        opponentWallet:
+          userId === match.playerAId ? data.playerBWallet : data.playerAWallet,
         yourWallet: data.yourWallet || '',
         role: playerRole,
       };
@@ -116,6 +141,8 @@ async function handleQueueJoin(ws, data) {
           tier,
           stakeSol: sessionData.stake_sol,
           opponent: currentPlayerData || { username: 'Opponent', rating: 1500 },
+          opponentWallet:
+            otherPlayerId === match.playerAId ? data.playerBWallet : data.playerAWallet,
           yourWallet: data.yourWallet || '',
           role: otherPlayerRole,
         };
@@ -163,11 +190,27 @@ async function handleDepositConfirm(ws, data) {
     // Check if both players have deposited
     const { data: updatedSession } = await supabase
       .from('duel_sessions')
-      .select('player_a_deposited, player_b_deposited')
+      .select('player_a_deposited, player_b_deposited, player_b_wallet')
       .eq('id', matchId)
       .single();
 
+    // Mirror the join on-chain. join_duel_escrow has no require_auth — it
+    // just flips status to ACTIVE in the contract ledger. Triggered on the
+    // SECOND deposit of the session (i.e. whenever this handler detects
+    // both deposited are now true), which is the moment pB has joined.
     if (updatedSession.player_a_deposited && updatedSession.player_b_deposited) {
+      try {
+        await invokeJoinDuelEscrow({
+          matchId,
+          playerB: updatedSession.player_b_wallet,
+        });
+      } catch (err) {
+        console.error(
+          `[duelSocket] Soroban join_duel_escrow failed for match ${matchId}:`,
+          err.message
+        );
+      }
+
       // Both deposited — notify both players they can start the game
       const readyMessage = JSON.stringify({
         type: 'both:deposited',
